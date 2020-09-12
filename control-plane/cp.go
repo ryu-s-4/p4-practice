@@ -1,5 +1,10 @@
 package main
 
+func BecomeMaster() {
+	// Master になるための関数
+
+}
+
 func main() {
 	// P4runtime Client 定義
 
