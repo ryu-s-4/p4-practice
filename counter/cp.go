@@ -1,17 +1,34 @@
 package main
 
-func BecomeMaster() {
-	// Master になるための関数
+import (
+	"context"
+	"log"
 
-}
+	v1 "github.com/p4lang/p4runtime/go/p4/v1"
+	"google.golang.org/grpc"
+)
 
 func main() {
-	// P4runtime Client 定義
+	// 接続先サーバーのアドレスとポート番号
+	addr := "127.0.0.1"
+	port := "20050"
+
+	// gRPC の connection 生成
+	conn, err := grpc.Dial(addr+":"+port, grpc.WithInsecure())
+	if err != nil {
+		log.Fatal("client connection error:", err)
+	}
+	defer conn.Close()
 
 	// P4runtime Client インスタンス生成
+	client := v1.NewP4RuntimeClient(conn)
 
-	// Master 権限取得
+	// StreamChanel 確立
+	ch, err := client.StreamChannel(context.TODO())
 
-	// CLI で命令待ち受け（とりあえず指定した VLAN-ID の Counter 値取得の命令のみ）
-	// ガチで実装する場合は送受信の message キュー ＋ goroutine を用いた非同期での送受信待ち受け
+	// Arbitration 処理（MasterArbitrationUpdate)
+
+	// Write Request で複数の VLAN-ID についてカウンタ値取得
+
+	// カウンタ値表示
 }
