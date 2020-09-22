@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 
+	"github.com/golang/protobuf/proto"
+	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 	"google.golang.org/grpc"
 )
 
-// MyMasterArbitrationUpdate : get arbitration for the master
+// MyMasterArbitrationUpdate gets arbitration for the master
 func MyMasterArbitrationUpdate(ch v1.P4Runtime_StreamChannelClient, update *v1.MasterArbitrationUpdate) (*v1.MasterArbitrationUpdate, error) {
 	request := v1.StreamMessageRequest{
 		Update: &v1.StreamMessageRequest_Arbitration{Arbitration: update}}
@@ -52,8 +55,35 @@ func MyMasterArbitrationUpdate(ch v1.P4Runtime_StreamChannelClient, update *v1.M
 	}
 }
 
+// MyCreateConfig creates config data for SetForwardingPipelineConfig
+func MyCreateConfig(p4infoPath string, devconfPath string) (v1.ForwardingPipelineConfig, error) {
+
+	// create P4Info
+	p4info := config_v1.P4Info{}
+	p4infoBytes, err := ioutil.ReadFile(p4infoPath)
+	if err != nil {
+		// Error 処理
+	}
+	proto.UnmarshalText(string(p4infoBytes), &p4info)
+
+	// create Device Config
+	var devconf []byte
+	devconf, err = ioutil.ReadFile(devconfPath)
+	if err != nil {
+		// Error 処理
+	}
+
+	// create ForwardingPipelineConfig
+	forwardingpipelineconfig := v1.ForwardingPipelineConfig{
+		P4Info:         &p4info,
+		P4DeviceConfig: devconf}
+
+	return forwardingpipelineconfig, nil
+
+}
+
 func main() {
-	// コントローラ（クライアント）を作成
+	// コントローラ情報を登録
 	type ControllerInfo struct {
 		deviceid   uint64
 		roleid     uint64
@@ -64,10 +94,6 @@ func main() {
 		deviceid:   0,
 		electionid: v1.Uint128{High: 0, Low: 1}}
 
-	// P4Info 作成
-
-
-	
 	// 接続先サーバーのアドレスとポート番号
 	addr := "127.0.0.1"
 	port := "20050"
@@ -98,24 +124,50 @@ func main() {
 	}
 
 	// SetForwardingPipelineConfig 処理
-	action := v1.SetForwardingPipelineConfigRequest_VERIFY_AND_COMMIT
-	/*  
-	const (
-		SetForwardingPipelineConfigRequest_UNSPECIFIED SetForwardingPipelineConfigRequest_Action = 0
-		SetForwardingPipelineConfigRequest_VERIFY SetForwardingPipelineConfigRequest_Action = 1
-		SetForwardingPipelineConfigRequest_VERIFY_AND_SAVE SetForwardingPipelineConfigRequest_Action = 2
-		SetForwardingPipelineConfigRequest_VERIFY_AND_COMMIT SetForwardingPipelineConfigRequest_Action = 3
-		SetForwardingPipelineConfigRequest_COMMIT SetForwardingPipelineConfigRequest_Action = 4
-		SetForwardingPipelineConfigRequest_RECONCILE_AND_COMMIT SetForwardingPipelineConfigRequest_Action = 5
-	)
-	*/ 
-	config := // input config file
-	request := v1.SetForwardingPipelineConfigRequest{
-		DeviceId: cntlInfo.deviceid, 
-		ElectionId: cntlInfo.electionid, 
-		Action: action, 
-		Config: config}
-	// Write Request で複数の VLAN-ID についてカウンタ値取得
+	p4infoPath := "pathtop4info"
+	devconfPath := "pathtodevconf"
 
-	// カウンタ値表示
+	action := v1.SetForwardingPipelineConfigRequest_VERIFY_AND_COMMIT
+	/*
+		const (
+			SetForwardingPipelineConfigRequest_UNSPECIFIED SetForwardingPipelineConfigRequest_Action = 0
+			SetForwardingPipelineConfigRequest_VERIFY SetForwardingPipelineConfigRequest_Action = 1
+			SetForwardingPipelineConfigRequest_VERIFY_AND_SAVE SetForwardingPipelineConfigRequest_Action = 2
+			SetForwardingPipelineConfigRequest_VERIFY_AND_COMMIT SetForwardingPipelineConfigRequest_Action = 3
+			SetForwardingPipelineConfigRequest_COMMIT SetForwardingPipelineConfigRequest_Action = 4
+			SetForwardingPipelineConfigRequest_RECONCILE_AND_COMMIT SetForwardingPipelineConfigRequest_Action = 5
+		)
+	*/
+	config, err := MyCreateConfig(p4infoPath, devconfPath)
+	if err != nil {
+		// Error 処理
+	}
+
+	request := v1.SetForwardingPipelineConfigRequest{
+		DeviceId:   cntlInfo.deviceid,
+		ElectionId: &cntlInfo.electionid,
+		Action:     action,
+		Config:     &config}
+
+	response, err := client.SetForwardingPipelineConfig(context.TODO(), &request)
+	if err != nil {
+		// Error 処理
+	} else {
+		log.Printf("SetForwardingPipelineConfig_Response Info: %v", *response)
+	}
+
+	// TODO: Write Request で MAC テーブルにエントリ登録
+
+	// TODO: Write Request でマルチキャストグループ登録
+	/*
+		v1.MulticastGroupEntry の Writerequest??
+		multicast_group_id と replica を設定する？
+	*/
+
+	// TODO: Write Request でブロードキャストテーブル登録（マルチキャストグループIDとVLANID+ブロードキャストアドレスの紐つけ）
+
+	// TODO: Write Request で複数の VLAN-ID についてカウンタ値取得，表示
+	/*
+		無限ループでコマンド受付．show コマンドで一覧表示，など．
+	*/
 }
