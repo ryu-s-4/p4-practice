@@ -64,6 +64,10 @@ func main() {
 		deviceid:   0,
 		electionid: v1.Uint128{High: 0, Low: 1}}
 
+	// P4Info 作成
+
+
+	
 	// 接続先サーバーのアドレスとポート番号
 	addr := "127.0.0.1"
 	port := "20050"
@@ -94,7 +98,23 @@ func main() {
 	}
 
 	// SetForwardingPipelineConfig 処理
-
+	action := v1.SetForwardingPipelineConfigRequest_VERIFY_AND_COMMIT
+	/*  
+	const (
+		SetForwardingPipelineConfigRequest_UNSPECIFIED SetForwardingPipelineConfigRequest_Action = 0
+		SetForwardingPipelineConfigRequest_VERIFY SetForwardingPipelineConfigRequest_Action = 1
+		SetForwardingPipelineConfigRequest_VERIFY_AND_SAVE SetForwardingPipelineConfigRequest_Action = 2
+		SetForwardingPipelineConfigRequest_VERIFY_AND_COMMIT SetForwardingPipelineConfigRequest_Action = 3
+		SetForwardingPipelineConfigRequest_COMMIT SetForwardingPipelineConfigRequest_Action = 4
+		SetForwardingPipelineConfigRequest_RECONCILE_AND_COMMIT SetForwardingPipelineConfigRequest_Action = 5
+	)
+	*/ 
+	config := // input config file
+	request := v1.SetForwardingPipelineConfigRequest{
+		DeviceId: cntlInfo.deviceid, 
+		ElectionId: cntlInfo.electionid, 
+		Action: action, 
+		Config: config}
 	// Write Request で複数の VLAN-ID についてカウンタ値取得
 
 	// カウンタ値表示
