@@ -27,7 +27,11 @@ func main() {
 	ch, err := client.StreamChannel(context.TODO())
 
 	// Arbitration 処理（MasterArbitrationUpdate)
-
+	update := v1.MasterArbitrationUpdate{
+		DeviceId : 0
+		ElectionId : v1.Uin128{ High: 0, Low: 1} 
+	}
+	
 	// Write Request で複数の VLAN-ID についてカウンタ値取得
 
 	// カウンタ値表示
