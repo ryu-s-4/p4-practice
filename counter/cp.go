@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
@@ -16,11 +17,13 @@ func MyMasterArbitrationUpdate(ch v1.P4Runtime_StreamChannelClient, update *v1.M
 	err := ch.Send(&request)
 	if err != nil {
 		// Error 処理
+		return nil, err
 	}
 
 	response, err := ch.Recv()
 	if err != nil {
 		// Error 処理
+		return nil, err
 	}
 
 	// response の body は Update 変数（Update()で取得可能）．Update は interface{} 型で下記のいずれか.
@@ -44,9 +47,9 @@ func MyMasterArbitrationUpdate(ch v1.P4Runtime_StreamChannelClient, update *v1.M
 		return ArbitrationResponse, nil
 	default:
 		// Error 処理
-		return nil, nil
+		err := fmt.Errorf("Error: Update Type is NOT StreamMessageResponse_Arbitration")
+		return nil, err
 	}
-
 }
 
 func main() {
@@ -83,7 +86,14 @@ func main() {
 		DeviceId:   cntlInfo.deviceid,
 		ElectionId: &cntlInfo.electionid}
 
-	res, err := MyMasterArbitrationUpdate(ch, &update)
+	arbitration, err := MyMasterArbitrationUpdate(ch, &update)
+	if err != nil {
+		// Error 処理
+	} else {
+		log.Printf("Arbitration Info: %v", *arbitration)
+	}
+
+	// SetForwardingPipelineConfig 処理
 
 	// Write Request で複数の VLAN-ID についてカウンタ値取得
 
