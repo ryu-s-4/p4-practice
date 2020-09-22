@@ -8,7 +8,59 @@ import (
 	"google.golang.org/grpc"
 )
 
+// MyMasterArbitrationUpdate : get arbitration for the master
+func MyMasterArbitrationUpdate(ch v1.P4Runtime_StreamChannelClient, update *v1.MasterArbitrationUpdate) (*v1.MasterArbitrationUpdate, error) {
+	request := v1.StreamMessageRequest{
+		Update: &v1.StreamMessageRequest_Arbitration{Arbitration: update}}
+
+	err := ch.Send(&request)
+	if err != nil {
+		// Error 処理
+	}
+
+	response, err := ch.Recv()
+	if err != nil {
+		// Error 処理
+	}
+
+	// response の body は Update 変数（Update()で取得可能）．Update は interface{} 型で下記のいずれか.
+	//   - StreamMessageResponse_Arbitration
+	//      > Arbitration *MasterArbitrationUpdate
+	//   - StreamMessageResponse_Packet
+	//      > Packet *PacketIn
+	//   - StreamMessageResponse_Digest
+	//      > Digest *DigestList
+	//   - StreamMessageResponse_IdleTimeoutNotification
+	//      > IdleTimeoutNotification *IdleTimeoutNotification
+	//   - StreamMessageResponse_Other
+	//      > Other *any.Any
+	//   - StreamMessageResponse_Error
+	//      > Error *StreamError
+	// StreamMessageReponse_Arbitration であるか check し，Arbitration を return（GetArbitration()で取得可能）
+	updateResponse := response.GetUpdate()
+	switch updateResponse.(type) {
+	case *v1.StreamMessageResponse_Arbitration:
+		ArbitrationResponse := response.GetArbitration()
+		return ArbitrationResponse, nil
+	default:
+		// Error 処理
+		return nil, nil
+	}
+
+}
+
 func main() {
+	// コントローラ（クライアント）を作成
+	type ControllerInfo struct {
+		deviceid   uint64
+		roleid     uint64
+		electionid v1.Uint128
+	}
+
+	cntlInfo := ControllerInfo{
+		deviceid:   0,
+		electionid: v1.Uint128{High: 0, Low: 1}}
+
 	// 接続先サーバーのアドレスとポート番号
 	addr := "127.0.0.1"
 	port := "20050"
@@ -23,15 +75,16 @@ func main() {
 	// P4runtime Client インスタンス生成
 	client := v1.NewP4RuntimeClient(conn)
 
-	// StreamChanel 確立
+	// StreamChanel 確立(P4Runtime_StreamChannelClient を return)
 	ch, err := client.StreamChannel(context.TODO())
 
 	// Arbitration 処理（MasterArbitrationUpdate)
 	update := v1.MasterArbitrationUpdate{
-		DeviceId : 0
-		ElectionId : v1.Uin128{ High: 0, Low: 1} 
-	}
-	
+		DeviceId:   cntlInfo.deviceid,
+		ElectionId: &cntlInfo.electionid}
+
+	res, err := MyMasterArbitrationUpdate(ch, &update)
+
 	// Write Request で複数の VLAN-ID についてカウンタ値取得
 
 	// カウンタ値表示
