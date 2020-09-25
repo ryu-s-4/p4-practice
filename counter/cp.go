@@ -82,6 +82,62 @@ func MyCreateConfig(p4infoPath string, devconfPath string) (v1.ForwardingPipelin
 
 }
 
+// MyNewTableEntry creates new TableEntry instance
+func MyNewTableEntry(params []byte) (v1.Entity_TableEntry, error) {
+
+}
+
+// MyNewEntry creates new Entry instance
+func MyNewEntry(entityType string, params []byte) (*v1.Entity, error) {
+
+	// return Entry based on entityType.
+	switch entityType {
+	case "TableEntry":
+		ent, err := MyNewTableEntry(params)
+		if err != nil {
+			// Error 処理
+		}
+		entity := v1.Entity{Entity: &ent}
+		return &entity, nil
+
+	default:
+		err := fmt.Errorf("Error: %s is NOT supported", entityType)
+		return nil, err
+	}
+}
+
+// MyNewUpdate creates new Update instance.
+func MyNewUpdate(updateType string, entityType string, params []byte) (*v1.Update, error) {
+
+	// return Update based on updateType
+	switch updateType {
+	case "INSERT":
+		entity, err := MyNewEntry(entityType, params)
+		if err != nil {
+			// Error 処理
+		}
+		update := v1.Update{
+			Type:   v1.Update_INSERT,
+			Entity: entity}
+		return &update, nil
+
+	case "MODIFY":
+		entity, err := MyNewEntry(entityType, params)
+		if err != nil {
+			// Error 処理
+		}
+		update := v1.Update{
+			Type:   v1.Update_MODIFY,
+			Entity: entity}
+		return &update, nil
+
+	default:
+		err := fmt.Errorf("Error: %s is NOT supported", updateType)
+		return nil, err
+	}
+
+}
+
 func main() {
 	// コントローラ情報を登録
 	type ControllerInfo struct {
@@ -157,6 +213,7 @@ func main() {
 	}
 
 	// TODO: Write Request で MAC テーブルにエントリ登録
+	dstMac := "xxx"
 
 	// TODO: Write Request でマルチキャストグループ登録
 	/*
