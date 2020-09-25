@@ -1,21 +1,15 @@
-{
-"table_entry": [
+ 
     {
-        "table_id": xxx, 
+        "table_id": 9999, 
         "match": [
             {
-                "field_id": xxx,
-                "field_match_type":
-                { 
-                    "exact": {"value": "MAC Addr."}
-                }
-            }, 
+                "field_id": 9999,
+                "field_match_type": "exact",
+                "value": "MAC Addr."
+            },     
             {
-                "field_id": xxx,
-                "field_match_type":
-                {
-                    "exact": {"value": "VLAN ID"}
-                }
+                "field_id": 9999,
+                "exact": {"value": "VLAN ID"}
             }
         ], 
         "action": 
@@ -24,18 +18,14 @@
             {
                 "action":
                 {
-                    "action_id": xxx, 
-                    "action_param": [
+                    "action_id": 9999, 
+                    "params": [
                         {
-
-                        }, 
-                        {
-
+                            "param_id": 9999,
+                            "value": "PORT_NUM"
                         }
                     ]
                 }
             }
-        }
+        }    
     }
-]
-}

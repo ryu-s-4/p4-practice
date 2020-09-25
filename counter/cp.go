@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 
 	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
@@ -85,22 +86,56 @@ func MyCreateConfig(p4infoPath string, devconfPath string) (v1.ForwardingPipelin
 // MyNewTableEntry creates new TableEntry instance
 func MyNewTableEntry(params []byte) (v1.Entity_TableEntry, error) {
 
-	// create new TableEntry instance. TODO: dynamic settings
-	tableentry := v1.TableEntry{
-		TableId: 11
-		v1.FieldMatch{
-			FieldId: 11, 
-			FieldMatchType: [
-				&v1.FieldMatch_Exact_{
-					Exact: &v1.FieldMatch_Exact{
-						Value: net.ParseMAC("macaddr")}}, 
-				&v1.FieldMatch_Exact_{
-					Exact: &v1.FieldMatch_Exact{
-						Value: 
-					}
-				}
-		}
+	tableID := uint32(99)                             // TODO: replace with table id from p4info file.
+	fieldID := uint32(99)                             // TODO: replace with field id from p4info file.
+	vlanID := []byte{uint8(120)}                      // TODO: replace with vlan-id what you want.
+	macAddr, err := net.ParseMAC("00:11:22:33:44:55") // TODO: replace with mac addr. what you want.
+	if err != nil {
+		// Error 処理
 	}
+	actionID := uint32(99)                // TODO: replace with action id from p4info file.
+	paramID := uint32(99)                 // TODO: replace with param id from p4info file.
+	portNum := []byte{uint8(0), uint8(1)} // TODO: replace with port num. what you want.
+
+	tableEntry := v1.TableEntry{
+		TableId: tableID,
+		Match: []*v1.FieldMatch{
+			{
+				FieldId: fieldID,
+				FieldMatchType: &v1.FieldMatch_Exact_{
+					Exact: &v1.FieldMatch_Exact{
+						Value: vlanID,
+					},
+				},
+			},
+			{
+				FieldId: fieldID,
+				FieldMatchType: &v1.FieldMatch_Exact_{
+					Exact: &v1.FieldMatch_Exact{
+						Value: macAddr,
+					},
+				},
+			},
+		},
+		Action: &v1.TableAction{
+			Type: &v1.TableAction_Action{
+				Action: &v1.Action{
+					ActionId: actionID,
+					Params: []*v1.Action_Param{
+						{
+							ParamId: paramID,
+							Value:   portNum,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	entityTableEntry := v1.Entity_TableEntry{
+		TableEntry: &tableEntry}
+
+	return entityTableEntry, nil
 }
 
 // MyNewEntry creates new Entry instance
@@ -229,7 +264,6 @@ func main() {
 	}
 
 	// TODO: Write Request で MAC テーブルにエントリ登録
-	dstMac := "xxx"
 
 	// TODO: Write Request でマルチキャストグループ登録
 	/*
