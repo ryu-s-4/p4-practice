@@ -85,6 +85,22 @@ func MyCreateConfig(p4infoPath string, devconfPath string) (v1.ForwardingPipelin
 // MyNewTableEntry creates new TableEntry instance
 func MyNewTableEntry(params []byte) (v1.Entity_TableEntry, error) {
 
+	// create new TableEntry instance. TODO: dynamic settings
+	tableentry := v1.TableEntry{
+		TableId: 11
+		v1.FieldMatch{
+			FieldId: 11, 
+			FieldMatchType: [
+				&v1.FieldMatch_Exact_{
+					Exact: &v1.FieldMatch_Exact{
+						Value: net.ParseMAC("macaddr")}}, 
+				&v1.FieldMatch_Exact_{
+					Exact: &v1.FieldMatch_Exact{
+						Value: 
+					}
+				}
+		}
+	}
 }
 
 // MyNewEntry creates new Entry instance
