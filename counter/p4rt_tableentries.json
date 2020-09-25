@@ -1,0 +1,41 @@
+{
+"table_entry": [
+    {
+        "table_id": xxx, 
+        "match": [
+            {
+                "field_id": xxx,
+                "field_match_type":
+                { 
+                    "exact": {"value": "MAC Addr."}
+                }
+            }, 
+            {
+                "field_id": xxx,
+                "field_match_type":
+                {
+                    "exact": {"value": "VLAN ID"}
+                }
+            }
+        ], 
+        "action": 
+        {
+            "type":
+            {
+                "action":
+                {
+                    "action_id": xxx, 
+                    "action_param": [
+                        {
+
+                        }, 
+                        {
+
+                        }
+                    ]
+                }
+            }
+        }
+    }
+]
+}
