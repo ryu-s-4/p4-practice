@@ -309,10 +309,11 @@ func main() {
 	ch, err := client.StreamChannel(context.TODO())
 
 	// Arbitration 処理（MasterArbitrationUpdate)
-	arbitration, err := MyMasterArbitrationUpdate(cntlInfo, ch)
+	arbitrationResponse, err := MyMasterArbitrationUpdate(cntlInfo, ch)
 	if err != nil {
 		// Error 処理
 	}
+	log.Printf("ArbitrationResponse: %v", arbitrationResponse)
 
 	// SetForwardingPipelineConfig 処理
 	actionType := "VERIFY_AND_COMMIT"
@@ -320,6 +321,7 @@ func main() {
 	if err != nil {
 		// Error 処理
 	}
+	log.Printf("SetForwardingPipelineConfigResponse: %v", setforwardingpipelineconfigResponse)
 
 	// TODO: Write Request で MAC テーブルにエントリ登録
 	atomisity := "CONTINUE_ON_ERROR"
@@ -331,17 +333,14 @@ func main() {
 	if err != nil {
 		// Error 処理
 	}
+	log.Printf("WriteResponse: %v", writeResponse)
 
 	// TODO: Write Request でブロードキャストテーブル登録（マルチキャストグループIDとVLANID+ブロードキャストアドレスの紐つけ）
 
 	// TODO: Write Request でマルチキャストグループ登録
-	/*
-		v1.MulticastGroupEntry の Writerequest??
-		multicast_group_id と replica を設定する？
-	*/
+	//   - v1.MulticastGroupEntry の Writerequest??
+	//   - multicast_group_id と replica を設定する？
 
 	// TODO: Write Request で複数の VLAN-ID についてカウンタ値取得，表示
-	/*
-		無限ループでコマンド受付．show コマンドで一覧表示，など．
-	*/
+	//   - 無限ループでコマンド受付．show コマンドで一覧表示，など．
 }

@@ -1,13 +1,6 @@
 package main
 
-import (
-	"fmt"
-	"io/ioutil"
-	"os"
-
-	v1 "github.com/p4lang/p4runtime/go/p4/v1"
-)
-
+/*
 func main() {
 	var entry v1.TableEntry
 
@@ -22,6 +15,7 @@ func main() {
 	//json.Unmarshal(conf, &entry)
 	fmt.Println(entry)
 }
+*/
 
 /*
 func main() {
