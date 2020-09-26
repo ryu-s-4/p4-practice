@@ -1,15 +1,14 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
-	"net"
+	"io/ioutil"
+	"os"
 
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 )
 
-/*
-func Test_1() {
+func main() {
 	var entry v1.TableEntry
 
 	filename := "./p4rt_tableentries.json"
@@ -23,8 +22,8 @@ func Test_1() {
 	//json.Unmarshal(conf, &entry)
 	fmt.Println(entry)
 }
-*/
 
+/*
 func main() {
 
 	tableID := uint32(99)                             // TODO: replace with table id from p4info file.
@@ -78,3 +77,4 @@ func main() {
 	fmt.Println(binary.BigEndian.Uint16(val))
 
 }
+*/

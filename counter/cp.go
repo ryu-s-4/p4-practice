@@ -13,10 +13,24 @@ import (
 	"google.golang.org/grpc"
 )
 
+// ControllerInfo is information for the controller
+type ControllerInfo struct {
+	deviceid    uint64
+	roleid      uint64
+	electionid  v1.Uint128
+	p4infoPath  string
+	devconfPath string
+}
+
 // MyMasterArbitrationUpdate gets arbitration for the master
-func MyMasterArbitrationUpdate(ch v1.P4Runtime_StreamChannelClient, update *v1.MasterArbitrationUpdate) (*v1.MasterArbitrationUpdate, error) {
+func MyMasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamChannelClient) (*v1.MasterArbitrationUpdate, error) {
+
+	update := v1.MasterArbitrationUpdate{
+		DeviceId:   cntlInfo.deviceid,
+		ElectionId: &cntlInfo.electionid}
+
 	request := v1.StreamMessageRequest{
-		Update: &v1.StreamMessageRequest_Arbitration{Arbitration: update}}
+		Update: &v1.StreamMessageRequest_Arbitration{Arbitration: &update}}
 
 	err := ch.Send(&request)
 	if err != nil {
@@ -47,8 +61,8 @@ func MyMasterArbitrationUpdate(ch v1.P4Runtime_StreamChannelClient, update *v1.M
 	updateResponse := response.GetUpdate()
 	switch updateResponse.(type) {
 	case *v1.StreamMessageResponse_Arbitration:
-		ArbitrationResponse := response.GetArbitration()
-		return ArbitrationResponse, nil
+		arbitrationResponse := response.GetArbitration()
+		return arbitrationResponse, nil
 	default:
 		// Error 処理
 		err := fmt.Errorf("Error: Update Type is NOT StreamMessageResponse_Arbitration")
@@ -57,7 +71,7 @@ func MyMasterArbitrationUpdate(ch v1.P4Runtime_StreamChannelClient, update *v1.M
 }
 
 // MyCreateConfig creates config data for SetForwardingPipelineConfig
-func MyCreateConfig(p4infoPath string, devconfPath string) (v1.ForwardingPipelineConfig, error) {
+func MyCreateConfig(p4infoPath string, devconfPath string) (*v1.ForwardingPipelineConfig, error) {
 
 	// create P4Info
 	p4info := config_v1.P4Info{}
@@ -79,29 +93,65 @@ func MyCreateConfig(p4infoPath string, devconfPath string) (v1.ForwardingPipelin
 		P4Info:         &p4info,
 		P4DeviceConfig: devconf}
 
-	return forwardingpipelineconfig, nil
+	return &forwardingpipelineconfig, nil
+}
 
+// MySetForwardingPipelineConfig sets the user defined configuration to the data plane.
+func MySetForwardingPipelineConfig(cntlInfo ControllerInfo, actionType string, client v1.P4RuntimeClient) (*v1.SetForwardingPipelineConfigResponse, error) {
+
+	var action v1.SetForwardingPipelineConfigRequest_Action
+	switch actionType {
+	case "VERIFY":
+		action = v1.SetForwardingPipelineConfigRequest_VERIFY
+	case "VERIFY_AND_SAVE":
+		action = v1.SetForwardingPipelineConfigRequest_VERIFY_AND_SAVE
+	case "VERIFY_AND_COMMIT":
+		action = v1.SetForwardingPipelineConfigRequest_VERIFY_AND_COMMIT
+	case "COMMIT":
+		action = v1.SetForwardingPipelineConfigRequest_COMMIT
+	case "RECONCILE_AND_COMMIT":
+		action = v1.SetForwardingPipelineConfigRequest_RECONCILE_AND_COMMIT
+	default:
+		action = v1.SetForwardingPipelineConfigRequest_UNSPECIFIED
+	}
+
+	config, err := MyCreateConfig(cntlInfo.p4infoPath, cntlInfo.devconfPath)
+	if err != nil {
+		// Error 処理
+	}
+
+	request := v1.SetForwardingPipelineConfigRequest{
+		DeviceId:   cntlInfo.deviceid,
+		ElectionId: &cntlInfo.electionid,
+		Action:     action,
+		Config:     config}
+
+	response, err := client.SetForwardingPipelineConfig(context.TODO(), &request)
+	if err != nil {
+		// Error 処理
+	}
+
+	return response, nil
 }
 
 // MyNewTableEntry creates new TableEntry instance
 func MyNewTableEntry(params []byte) (v1.Entity_TableEntry, error) {
 
 	tableID := uint32(99)                             // TODO: replace with table id from p4info file.
-	fieldID := uint32(99)                             // TODO: replace with field id from p4info file.
 	vlanID := []byte{uint8(120)}                      // TODO: replace with vlan-id what you want.
 	macAddr, err := net.ParseMAC("00:11:22:33:44:55") // TODO: replace with mac addr. what you want.
 	if err != nil {
 		// Error 処理
 	}
 	actionID := uint32(99)                // TODO: replace with action id from p4info file.
-	paramID := uint32(99)                 // TODO: replace with param id from p4info file.
 	portNum := []byte{uint8(0), uint8(1)} // TODO: replace with port num. what you want.
+	// groupID := []byte{uint8(0), uint8(1)} // TODO: replace with group id what you want.
 
 	tableEntry := v1.TableEntry{
 		TableId: tableID,
 		Match: []*v1.FieldMatch{
 			{
-				FieldId: fieldID,
+				FieldId: uint32(1),
 				FieldMatchType: &v1.FieldMatch_Exact_{
 					Exact: &v1.FieldMatch_Exact{
 						Value: vlanID,
@@ -109,7 +159,7 @@ func MyNewTableEntry(params []byte) (v1.Entity_TableEntry, error) {
 				},
 			},
 			{
-				FieldId: fieldID,
+				FieldId: uint32(2),
 				FieldMatchType: &v1.FieldMatch_Exact_{
 					Exact: &v1.FieldMatch_Exact{
 						Value: macAddr,
@@ -123,8 +173,8 @@ func MyNewTableEntry(params []byte) (v1.Entity_TableEntry, error) {
 					ActionId: actionID,
 					Params: []*v1.Action_Param{
 						{
-							ParamId: paramID,
-							Value:   portNum,
+							ParamId: uint32(1),
+							Value:   portNum, // or groupID
 						},
 					},
 				},
@@ -160,46 +210,86 @@ func MyNewEntry(entityType string, params []byte) (*v1.Entity, error) {
 // MyNewUpdate creates new Update instance.
 func MyNewUpdate(updateType string, entityType string, params []byte) (*v1.Update, error) {
 
-	// return Update based on updateType
+	entity, err := MyNewEntry(entityType, params)
+	if err != nil {
+		// Error 処理
+	}
+
 	switch updateType {
 	case "INSERT":
-		entity, err := MyNewEntry(entityType, params)
-		if err != nil {
-			// Error 処理
-		}
 		update := v1.Update{
 			Type:   v1.Update_INSERT,
 			Entity: entity}
 		return &update, nil
 
 	case "MODIFY":
-		entity, err := MyNewEntry(entityType, params)
-		if err != nil {
-			// Error 処理
-		}
 		update := v1.Update{
 			Type:   v1.Update_MODIFY,
 			Entity: entity}
 		return &update, nil
 
+	case "DELETE":
+		update := v1.Update{
+			Type:   v1.Update_DELETE,
+			Entity: entity}
+		return &update, nil
+
 	default:
-		err := fmt.Errorf("Error: %s is NOT supported", updateType)
-		return nil, err
+		update := v1.Update{
+			Type:   v1.Update_UNSPECIFIED,
+			Entity: entity}
+		return &update, nil
+	}
+}
+
+// MyWriteRequest sends write request to the data plane.
+func MyWriteRequest(
+	cntlInfo ControllerInfo,
+	atomisityType string,
+	updateType string,
+	entityType string,
+	params []byte,
+	client v1.P4RuntimeClient) (*v1.WriteResponse, error) {
+
+	update, err := MyNewUpdate(updateType, entityType, params)
+	updates := make([]*v1.Update, 10)
+	updates = append(updates, update)
+
+	var atomisity v1.WriteRequest_Atomicity
+	switch atomisityType {
+	case "CONTINUE_ON_ERROR":
+		atomisity = v1.WriteRequest_CONTINUE_ON_ERROR
+	case "ROLLBACK_ON_ERROR": // Optional
+		atomisity = v1.WriteRequest_ROLLBACK_ON_ERROR
+	case "DATAPLANE_ATOMIC": // Optional
+		atomisity = v1.WriteRequest_DATAPLANE_ATOMIC
+	default:
+		atomisity = v1.WriteRequest_CONTINUE_ON_ERROR
 	}
 
+	writeRequest := v1.WriteRequest{
+		DeviceId:   cntlInfo.deviceid,
+		ElectionId: &cntlInfo.electionid,
+		Updates:    updates,
+		Atomicity:  atomisity,
+	}
+
+	writeResponse, err := client.Write(context.TODO(), &writeRequest)
+	if err != nil {
+		// Error 処理
+	}
+
+	return writeResponse, nil
 }
 
 func main() {
 	// コントローラ情報を登録
-	type ControllerInfo struct {
-		deviceid   uint64
-		roleid     uint64
-		electionid v1.Uint128
-	}
-
 	cntlInfo := ControllerInfo{
-		deviceid:   0,
-		electionid: v1.Uint128{High: 0, Low: 1}}
+		deviceid:    0,
+		electionid:  v1.Uint128{High: 0, Low: 1},
+		p4infoPath:  "path to p4info file",
+		devconfPath: "path to devconf json file ",
+	}
 
 	// 接続先サーバーのアドレスとポート番号
 	addr := "127.0.0.1"
@@ -219,59 +309,36 @@ func main() {
 	ch, err := client.StreamChannel(context.TODO())
 
 	// Arbitration 処理（MasterArbitrationUpdate)
-	update := v1.MasterArbitrationUpdate{
-		DeviceId:   cntlInfo.deviceid,
-		ElectionId: &cntlInfo.electionid}
-
-	arbitration, err := MyMasterArbitrationUpdate(ch, &update)
+	arbitration, err := MyMasterArbitrationUpdate(cntlInfo, ch)
 	if err != nil {
 		// Error 処理
-	} else {
-		log.Printf("Arbitration Info: %v", *arbitration)
 	}
 
 	// SetForwardingPipelineConfig 処理
-	p4infoPath := "pathtop4info"
-	devconfPath := "pathtodevconf"
-
-	action := v1.SetForwardingPipelineConfigRequest_VERIFY_AND_COMMIT
-	/*
-		const (
-			SetForwardingPipelineConfigRequest_UNSPECIFIED SetForwardingPipelineConfigRequest_Action = 0
-			SetForwardingPipelineConfigRequest_VERIFY SetForwardingPipelineConfigRequest_Action = 1
-			SetForwardingPipelineConfigRequest_VERIFY_AND_SAVE SetForwardingPipelineConfigRequest_Action = 2
-			SetForwardingPipelineConfigRequest_VERIFY_AND_COMMIT SetForwardingPipelineConfigRequest_Action = 3
-			SetForwardingPipelineConfigRequest_COMMIT SetForwardingPipelineConfigRequest_Action = 4
-			SetForwardingPipelineConfigRequest_RECONCILE_AND_COMMIT SetForwardingPipelineConfigRequest_Action = 5
-		)
-	*/
-	config, err := MyCreateConfig(p4infoPath, devconfPath)
+	actionType := "VERIFY_AND_COMMIT"
+	setforwardingpipelineconfigResponse, err := MySetForwardingPipelineConfig(cntlInfo, actionType, client)
 	if err != nil {
 		// Error 処理
-	}
-
-	request := v1.SetForwardingPipelineConfigRequest{
-		DeviceId:   cntlInfo.deviceid,
-		ElectionId: &cntlInfo.electionid,
-		Action:     action,
-		Config:     &config}
-
-	response, err := client.SetForwardingPipelineConfig(context.TODO(), &request)
-	if err != nil {
-		// Error 処理
-	} else {
-		log.Printf("SetForwardingPipelineConfig_Response Info: %v", *response)
 	}
 
 	// TODO: Write Request で MAC テーブルにエントリ登録
+	atomisity := "CONTINUE_ON_ERROR"
+	updateType := "INSERT"
+	entityType := "TableEntry"
+	params := make([]byte, 10)
+
+	writeResponse, err := MyWriteRequest(cntlInfo, atomisity, updateType, entityType, params, client)
+	if err != nil {
+		// Error 処理
+	}
+
+	// TODO: Write Request でブロードキャストテーブル登録（マルチキャストグループIDとVLANID+ブロードキャストアドレスの紐つけ）
 
 	// TODO: Write Request でマルチキャストグループ登録
 	/*
 		v1.MulticastGroupEntry の Writerequest??
 		multicast_group_id と replica を設定する？
 	*/
-
-	// TODO: Write Request でブロードキャストテーブル登録（マルチキャストグループIDとVLANID+ブロードキャストアドレスの紐つけ）
 
 	// TODO: Write Request で複数の VLAN-ID についてカウンタ値取得，表示
 	/*
