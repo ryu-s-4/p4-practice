@@ -199,19 +199,19 @@ func MyNewMulticastGroupEntry(params []byte) *v1.MulticastGroupEntry {
 
 	multicastGroupID := binary.BigEndian.Uint32(params[0:4])
 
+	var replica []*v1.Replica
+	rep := make([]byte, 8)
+
+	for i := 0; (12+8*i) <= len(params); i++ {
+		rep = params[(4+8*i):(12+8*i)]
+		replica = append(replica, &v1.Replica{ EgressPort: binary.BigEndian.Uint32(rep[0:4]), Instance: binary.BigEndian.Uint32(rep[4:])})
+	} 
+
 	multicastGroupEntry := v1.MulticastGroupEntry{
 		MulticastGroupId: multicastGroupID,
-		Replicas: []*v1.Replica{
-			{
-				EgressPort: uint32(1),
-				Instance:   uint32(1),
-			},
-			{
-				EgressPort: uint32(1),
-				Instance:   uint32(1),
-			},
-		},
+		Replicas: replica,
 	}
+
 	return &multicastGroupEntry
 }
 
@@ -353,6 +353,9 @@ func main() {
 
 	// StreamChanel 確立(P4Runtime_StreamChannelClient を return)
 	ch, err := client.StreamChannel(context.TODO())
+	if err != nil {
+		// Error 処理
+	}
 
 	// Arbitration 処理（MasterArbitrationUpdate)
 	arbitrationResponse, err := MyMasterArbitrationUpdate(cntlInfo, ch)
@@ -373,14 +376,15 @@ func main() {
 	var writeRequestInfo WriteRequestInfo
 	var writeResponse *v1.WriteResponse
 
-	var tableid []byte
-	var actionid []byte
-	var vlanID []byte
-	var macAddr []byte
-	var portNum []byte
-	var groupID []byte
+	tableid := make([]byte, 4)
+	actionid := make([]byte, 4)
+	vlanID := make([]byte, 2)
+	macAddr := make([]byte, 6)
+	portNum := make([]byte, 2)
+	groupID := make([]byte, 4)
+	replica := make([]byte, 8)
 
-	// TODO: MAC テーブルにエントリ登録
+	// TODO: MAC テーブル with VLAN にエントリ登録（to host1)
 	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
 	writeRequestInfo.updateType = "INSERT"
 	writeRequestInfo.entityType = "TableEntry"
@@ -395,8 +399,39 @@ func main() {
 
 	binary.BigEndian.PutUint32(tableid, uint32(9999))  // TODO: replace with table id what you want.
 	binary.BigEndian.PutUint32(actionid, uint32(9999)) // TODO: replace with action id what you want.
-	binary.BigEndian.PutUint16(vlanID, uint16(1))      // TODO: replace with vlan-id what you want.
+	binary.BigEndian.PutUint16(vlanID, uint16(100))      // TODO: replace with vlan-id what you want.
 	macAddr, _ = net.ParseMAC("00:11:22:33:44:55")     // TODO: replace with mac addr. what you want.
+	binary.BigEndian.PutUint16(portNum, uint16(1))     // TODO: replace with port num. what you want.
+
+	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
+	writeRequestInfo.params = append(writeRequestInfo.params, actionid...)
+	writeRequestInfo.params = append(writeRequestInfo.params, vlanID...)
+	writeRequestInfo.params = append(writeRequestInfo.params, macAddr...)
+	writeRequestInfo.params = append(writeRequestInfo.params, portNum...)
+
+	writeResponse, err = MyWriteRequest(cntlInfo, writeRequestInfo, client)
+	if err != nil {
+		// Error 処理
+	}
+	log.Printf("WriteResponse: %v", writeResponse)
+
+	// TODO: MAC テーブル with VLAN にエントリ登録( to host3)
+	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
+	writeRequestInfo.updateType = "INSERT"
+	writeRequestInfo.entityType = "TableEntry"
+	writeRequestInfo.params = make([]byte, 0)
+	/*
+		table-ID  : byte[0] ~ byte[3]
+		action-ID : byte[4] ~ byte[7]
+		VLAN-ID   : byte[8], byte[9]
+		MAC       : byte[10] ~ byte[15]
+		portNum   : byte[16], byte[17]
+	*/
+
+	binary.BigEndian.PutUint32(tableid, uint32(table "mac_vlan_exact" の id))  // TODO: replace with table id what you want.
+	binary.BigEndian.PutUint32(actionid, uint32(action "switching_vlan" の id)) // TODO: replace with action id what you want.
+	binary.BigEndian.PutUint16(vlanID, uint16(100))      // TODO: replace with vlan-id what you want.
+	macAddr, _ = net.ParseMAC("host1 の MAC Addr.")     // TODO: replace with mac addr. what you want.
 	binary.BigEndian.PutUint16(portNum, uint16(1))     // TODO: replace with port num. what you want.
 
 	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
@@ -421,14 +456,14 @@ func main() {
 		action-ID : byte[4] ~ byte[7]
 		VLAN-ID   : byte[8], byte[9]
 		MAC       : byte[10] ~ byte[15]
-		portNum   : byte[16], byte[17]
+		group-ID  : byte[16], byte[17]
 	*/
 
-	binary.BigEndian.PutUint32(tableid, uint32(9999))  // TODO: replace with table id what you want.
-	binary.BigEndian.PutUint32(actionid, uint32(9999)) // TODO: replace with action id what you want.
-	binary.BigEndian.PutUint16(vlanID, uint16(1))      // TODO: replace with vlan-id what you want.
-	macAddr, _ = net.ParseMAC("00:11:22:33:44:55")     // TODO: replace with mac addr. what you want.
-	binary.BigEndian.PutUint16(portNum, uint16(1))     // TODO: replace with port num. what you want.
+	binary.BigEndian.PutUint32(tableid, uint32(table "mac_vlan_exact" の id))  // TODO: replace with table id what you want.
+	binary.BigEndian.PutUint32(actionid, uint32(action "broadcast_vlan" の id)) // TODO: replace with action id what you want.
+	binary.BigEndian.PutUint16(vlanID, uint16(100))      // TODO: replace with vlan-id what you want.
+	macAddr, _ = net.ParseMAC("ff:ff:ff:ff:ff:ff")     // TODO: replace with mac addr. what you want.
+	binary.BigEndian.PutUint16(groupID, uint16(1))     // TODO: replace with group id what you want.
 
 	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
 	writeRequestInfo.params = append(writeRequestInfo.params, actionid...)
@@ -443,9 +478,41 @@ func main() {
 	log.Printf("WriteResponse: %v", writeResponse)
 
 	// TODO: Write Request でマルチキャストグループ登録
-	//   - v1.MulticastGroupEntry の Writerequest??
-	//   - multicast_group_id と replica を設定する？
+	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
+	writeRequestInfo.updateType = "INSERT"
+	writeRequestInfo.entityType = "PacketReplicationEngineEntry"
+	writeRequestInfo.params = make([]byte, 0)
+	/*
+		group-ID : byte[0] ~ byte[3]
+		replica
+		  - egress-port(32bit) : byte[4] ~ byte[7]
+		  - instance(32bit)    : byte[8] ~ byte[11]
+	*/
+	binary.BigEndian.PutUint32(groupID, uint32(1))
+	params = append(params, groupID...)
 
+	binary.BigEndian.PutUint32(replica[0:4], uint32(0))
+	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
+	params = append(params, replica...)
+
+	binary.BigEndian.PutUint32(replica[0:4], uint32(1))
+	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
+	params = append(params, replica...)
+
+	binary.BigEndian.PutUint32(replica[0:4], uint32(2))
+	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
+	params = append(params, replica...)
+
+	binary.BigEndian.PutUint32(replica[0:4], uint32(3))
+	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
+	params = append(params, replica...)
+
+	writeResponse, err = MyWriteRequest(cntlInfo, writeRequestInfo, client)
+	if err != nil {
+		// Error 処理
+	}
+	log.Printf("WriteResponse: %v", writeResponse)
+	
 	// TODO: Write Request で複数の VLAN-ID についてカウンタ値取得，表示
 	//   - 無限ループでコマンド受付．show コマンドで一覧表示，など．
 }

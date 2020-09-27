@@ -1,5 +1,12 @@
 package main
 
+import (
+	"encoding/binary"
+	"fmt"
+
+	v1 "github.com/p4lang/p4runtime/go/p4/v1"
+)
+
 /*
 func main() {
 	var entry v1.TableEntry
@@ -98,3 +105,59 @@ func main() {
 	fmt.Println(port)
 }
 */
+
+/*
+func main() {
+	var groupID []byte
+
+	groupID = make([]byte, 2)
+	binary.BigEndian.PutUint16(groupID, uint16(10))
+	fmt.Println(groupID)
+
+	groupID = make([]byte, 4)
+	binary.BigEndian.PutUint32(groupID, uint32(99))
+	fmt.Println(groupID)
+}
+*/
+
+func main() {
+
+	params := make([]byte, 0)
+	groupID := make([]byte, 4)
+	replica := make([]byte, 8)
+
+	binary.BigEndian.PutUint32(groupID, uint32(1))
+	params = append(params, groupID...)
+
+	binary.BigEndian.PutUint32(replica[0:4], uint32(0))
+	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
+	params = append(params, replica...)
+
+	binary.BigEndian.PutUint32(replica[0:4], uint32(1))
+	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
+	params = append(params, replica...)
+
+	binary.BigEndian.PutUint32(replica[0:4], uint32(2))
+	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
+	params = append(params, replica...)
+
+	binary.BigEndian.PutUint32(replica[0:4], uint32(3))
+	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
+	params = append(params, replica...)
+
+	var replicaTest []*v1.Replica
+	rep := make([]byte, 8)
+
+	for i := 0; (12 + 8*i) <= len(params); i++ {
+		rep = params[(4 + 8*i):(12 + 8*i)]
+		replicaTest = append(replicaTest, &v1.Replica{EgressPort: binary.BigEndian.Uint32(rep[0:4]), Instance: binary.BigEndian.Uint32(rep[4:])})
+		// fmt.Println("egress_port: ", binary.BigEndian.Uint32(rep[0:4]))
+		// fmt.Println("instanse   : ", binary.BigEndian.Uint32(rep[4:]))
+	}
+
+	for idx, r := range replicaTest {
+		fmt.Println(idx, r)
+		// fmt.Println("egress_port: ", r.EgressPort)
+		// fmt.Println("instanse   : ", r.Instance)
+	}
+}
