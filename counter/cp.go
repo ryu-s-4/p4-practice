@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -20,6 +21,14 @@ type ControllerInfo struct {
 	electionid  v1.Uint128
 	p4infoPath  string
 	devconfPath string
+}
+
+// WriteRequestInfo is information for WriteRequest.
+type WriteRequestInfo struct {
+	atomisity  string
+	updateType string
+	entityType string
+	params     []byte
 }
 
 // MyMasterArbitrationUpdate gets arbitration for the master
@@ -135,17 +144,14 @@ func MySetForwardingPipelineConfig(cntlInfo ControllerInfo, actionType string, c
 }
 
 // MyNewTableEntry creates new TableEntry instance
-func MyNewTableEntry(params []byte) (v1.Entity_TableEntry, error) {
+func MyNewTableEntry(params []byte) *v1.Entity_TableEntry {
 
-	tableID := uint32(99)                             // TODO: replace with table id from p4info file.
-	vlanID := []byte{uint8(120)}                      // TODO: replace with vlan-id what you want.
-	macAddr, err := net.ParseMAC("00:11:22:33:44:55") // TODO: replace with mac addr. what you want.
-	if err != nil {
-		// Error 処理
-	}
-	actionID := uint32(99)                // TODO: replace with action id from p4info file.
-	portNum := []byte{uint8(0), uint8(1)} // TODO: replace with port num. what you want.
-	// groupID := []byte{uint8(0), uint8(1)} // TODO: replace with group id what you want.
+	tableID := binary.BigEndian.Uint32(params[0:4])
+	actionID := binary.BigEndian.Uint32(params[4:8])
+
+	vlanID := params[8:10]
+	macAddr := params[10:16]
+	portNum_or_groupID := params[16:18]
 
 	tableEntry := v1.TableEntry{
 		TableId: tableID,
@@ -174,7 +180,7 @@ func MyNewTableEntry(params []byte) (v1.Entity_TableEntry, error) {
 					Params: []*v1.Action_Param{
 						{
 							ParamId: uint32(1),
-							Value:   portNum, // or groupID
+							Value:   portNum_or_groupID,
 						},
 					},
 				},
@@ -185,7 +191,48 @@ func MyNewTableEntry(params []byte) (v1.Entity_TableEntry, error) {
 	entityTableEntry := v1.Entity_TableEntry{
 		TableEntry: &tableEntry}
 
-	return entityTableEntry, nil
+	return &entityTableEntry
+}
+
+// MyNewMulticastGroupEntry creates new MulticastGroupEntry instanse.
+func MyNewMulticastGroupEntry(params []byte) *v1.MulticastGroupEntry {
+
+	multicastGroupID := binary.BigEndian.Uint32(params[0:4])
+
+	multicastGroupEntry := v1.MulticastGroupEntry{
+		MulticastGroupId: multicastGroupID,
+		Replicas: []*v1.Replica{
+			{
+				EgressPort: uint32(1),
+				Instance:   uint32(1),
+			},
+			{
+				EgressPort: uint32(1),
+				Instance:   uint32(1),
+			},
+		},
+	}
+	return &multicastGroupEntry
+}
+
+// MyNewPacketReplicationEngineEntry creates new PacketReplicationEngineEntry instanse.
+func MyNewPacketReplicationEngineEntry(params []byte) *v1.Entity_PacketReplicationEngineEntry {
+
+	multicastGroupEntry := MyNewMulticastGroupEntry(params)
+
+	packetReplicationEngineEntry_MulticastGroupEntry := v1.PacketReplicationEngineEntry_MulticastGroupEntry{
+		MulticastGroupEntry: multicastGroupEntry,
+	}
+
+	packetReplicationEngineEntry := v1.PacketReplicationEngineEntry{
+		Type: &packetReplicationEngineEntry_MulticastGroupEntry,
+	}
+
+	entity_PacketReplicationEngineEntry := v1.Entity_PacketReplicationEngineEntry{
+		PacketReplicationEngineEntry: &packetReplicationEngineEntry,
+	}
+
+	return &entity_PacketReplicationEngineEntry
 }
 
 // MyNewEntry creates new Entry instance
@@ -194,11 +241,13 @@ func MyNewEntry(entityType string, params []byte) (*v1.Entity, error) {
 	// return Entry based on entityType.
 	switch entityType {
 	case "TableEntry":
-		ent, err := MyNewTableEntry(params)
-		if err != nil {
-			// Error 処理
-		}
-		entity := v1.Entity{Entity: &ent}
+		ent := MyNewTableEntry(params)
+		entity := v1.Entity{Entity: ent}
+		return &entity, nil
+
+	case "PacketPacketReplicationEngineEntry":
+		ent := MyNewPacketReplicationEngineEntry(params)
+		entity := v1.Entity{Entity: ent}
 		return &entity, nil
 
 	default:
@@ -245,18 +294,15 @@ func MyNewUpdate(updateType string, entityType string, params []byte) (*v1.Updat
 // MyWriteRequest sends write request to the data plane.
 func MyWriteRequest(
 	cntlInfo ControllerInfo,
-	atomisityType string,
-	updateType string,
-	entityType string,
-	params []byte,
+	writeRequestInfo WriteRequestInfo,
 	client v1.P4RuntimeClient) (*v1.WriteResponse, error) {
 
-	update, err := MyNewUpdate(updateType, entityType, params)
+	update, err := MyNewUpdate(writeRequestInfo.updateType, writeRequestInfo.entityType, writeRequestInfo.params)
 	updates := make([]*v1.Update, 10)
 	updates = append(updates, update)
 
 	var atomisity v1.WriteRequest_Atomicity
-	switch atomisityType {
+	switch writeRequestInfo.atomisity {
 	case "CONTINUE_ON_ERROR":
 		atomisity = v1.WriteRequest_CONTINUE_ON_ERROR
 	case "ROLLBACK_ON_ERROR": // Optional
@@ -323,19 +369,78 @@ func main() {
 	}
 	log.Printf("SetForwardingPipelineConfigResponse: %v", setforwardingpipelineconfigResponse)
 
-	// TODO: Write Request で MAC テーブルにエントリ登録
-	atomisity := "CONTINUE_ON_ERROR"
-	updateType := "INSERT"
-	entityType := "TableEntry"
-	params := make([]byte, 10)
+	// TODO: Write Request でテーブルエントリ登録
+	var writeRequestInfo WriteRequestInfo
+	var writeResponse *v1.WriteResponse
 
-	writeResponse, err := MyWriteRequest(cntlInfo, atomisity, updateType, entityType, params, client)
+	var tableid []byte
+	var actionid []byte
+	var vlanID []byte
+	var macAddr []byte
+	var portNum []byte
+	var groupID []byte
+
+	// TODO: MAC テーブルにエントリ登録
+	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
+	writeRequestInfo.updateType = "INSERT"
+	writeRequestInfo.entityType = "TableEntry"
+	writeRequestInfo.params = make([]byte, 0)
+	/*
+		table-ID  : byte[0] ~ byte[3]
+		action-ID : byte[4] ~ byte[7]
+		VLAN-ID   : byte[8], byte[9]
+		MAC       : byte[10] ~ byte[15]
+		portNum   : byte[16], byte[17]
+	*/
+
+	binary.BigEndian.PutUint32(tableid, uint32(9999))  // TODO: replace with table id what you want.
+	binary.BigEndian.PutUint32(actionid, uint32(9999)) // TODO: replace with action id what you want.
+	binary.BigEndian.PutUint16(vlanID, uint16(1))      // TODO: replace with vlan-id what you want.
+	macAddr, _ = net.ParseMAC("00:11:22:33:44:55")     // TODO: replace with mac addr. what you want.
+	binary.BigEndian.PutUint16(portNum, uint16(1))     // TODO: replace with port num. what you want.
+
+	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
+	writeRequestInfo.params = append(writeRequestInfo.params, actionid...)
+	writeRequestInfo.params = append(writeRequestInfo.params, vlanID...)
+	writeRequestInfo.params = append(writeRequestInfo.params, macAddr...)
+	writeRequestInfo.params = append(writeRequestInfo.params, portNum...)
+
+	writeResponse, err = MyWriteRequest(cntlInfo, writeRequestInfo, client)
 	if err != nil {
 		// Error 処理
 	}
 	log.Printf("WriteResponse: %v", writeResponse)
 
-	// TODO: Write Request でブロードキャストテーブル登録（マルチキャストグループIDとVLANID+ブロードキャストアドレスの紐つけ）
+	// TODO: ブロードキャストテーブル登録
+	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
+	writeRequestInfo.updateType = "INSERT"
+	writeRequestInfo.entityType = "TableEntry"
+	writeRequestInfo.params = make([]byte, 0)
+	/*
+		table-ID  : byte[0] ~ byte[3]
+		action-ID : byte[4] ~ byte[7]
+		VLAN-ID   : byte[8], byte[9]
+		MAC       : byte[10] ~ byte[15]
+		portNum   : byte[16], byte[17]
+	*/
+
+	binary.BigEndian.PutUint32(tableid, uint32(9999))  // TODO: replace with table id what you want.
+	binary.BigEndian.PutUint32(actionid, uint32(9999)) // TODO: replace with action id what you want.
+	binary.BigEndian.PutUint16(vlanID, uint16(1))      // TODO: replace with vlan-id what you want.
+	macAddr, _ = net.ParseMAC("00:11:22:33:44:55")     // TODO: replace with mac addr. what you want.
+	binary.BigEndian.PutUint16(portNum, uint16(1))     // TODO: replace with port num. what you want.
+
+	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
+	writeRequestInfo.params = append(writeRequestInfo.params, actionid...)
+	writeRequestInfo.params = append(writeRequestInfo.params, vlanID...)
+	writeRequestInfo.params = append(writeRequestInfo.params, macAddr...)
+	writeRequestInfo.params = append(writeRequestInfo.params, groupID...)
+
+	writeResponse, err = MyWriteRequest(cntlInfo, writeRequestInfo, client)
+	if err != nil {
+		// Error 処理
+	}
+	log.Printf("WriteResponse: %v", writeResponse)
 
 	// TODO: Write Request でマルチキャストグループ登録
 	//   - v1.MulticastGroupEntry の Writerequest??

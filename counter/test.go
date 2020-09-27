@@ -72,3 +72,29 @@ func main() {
 
 }
 */
+
+/*
+func main() {
+
+	var vlanID []byte
+	var portNum []byte
+
+	params := make([]byte, 0)
+
+	vlanID = append(vlanID, uint8(0), uint8(1))
+	macAddr, _ := net.ParseMAC("ff:ff:ff:ff:ff:ff")
+	portNum = append(portNum, uint8(0), uint8(1))
+
+	params = append(params, vlanID...)
+	params = append(params, macAddr...)
+	params = append(params, portNum...)
+
+	vlan := params[0:2]
+	mac := params[2:8]
+	port := params[8:]
+
+	fmt.Println(vlan)
+	fmt.Println(mac)
+	fmt.Println(port)
+}
+*/
