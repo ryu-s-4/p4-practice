@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
@@ -79,14 +80,17 @@ func MyMasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamCh
 	case *v1.StreamMessageResponse_Arbitration:
 		arbitration := response.GetArbitration()
 		return arbitration, nil
+	/*
 	case *v1.StreamMessageResponse_Packet:
 		packet := response.GetPacket()
 	case *v1.StreamMessageResponse_Digest:
 		digest := response.GetDigest()
 	case *v1.StreamMessageResponse_IdleTimeoutNotification:
 		idletimenotf := response.GetIdleTimeoutNotification()
+	*/
 	default:
-		err := response.GetError()
+		err := fmt.Errorf("Error: not supported. ")
+		return nil, err
 	}
 }
 
@@ -344,9 +348,9 @@ func MyWriteRequest(
 func MyNewCounterEntry(params []byte) *v1.CounterEntry {
 
 	counterEntry := v1.CounterEntry{
-		CounterId: uint32(10),
+		CounterId: uint32(302003629),
 		Index: &v1.Index{
-			Index: int64(10),
+			Index: int64(100),
 		},
 	}
 	return &counterEntry
@@ -567,14 +571,15 @@ func main() {
 	}
 	log.Printf("WriteResponse: %v", writeResponse)
 
-	var num int
-	fmt.Print("$ press any key.")
-	fmt.Scan(&num)
-
 	// TODO: Read Request で Counter 値を取得
 	var readRequestInfo ReadRequestInfo
 	counterid := make([]byte, 4)
 	index := make([]byte, 8)
+
+	binary.BigEndian.PutUint32(counterid, uint32(99))
+	binary.BigEndian.PutUint64(index, uint64(1))
+	readRequestInfo.params = append(readRequestInfo.params, counterid...)
+	readRequestInfo.params = append(readRequestInfo.params, index...)
 
 	readRequestInfo.entityTypes = make([]string, 0)
 	readRequestInfo.entityTypes = append(readRequestInfo.entityTypes, "CounterEntry")
@@ -587,10 +592,41 @@ func main() {
 	if err != nil {
 		// Error 処理
 	}
-	readresponse, err := readclient.Recv()
+
+	// Counter 取得（スリープ前）
+	var cntentry *v1.CounterEntry
+	var readresponse *v1.ReadResponse 
+
+	readresponse, err = readclient.Recv()
 	if err != nil {
 		// Error 処理
 	}
-	fmt.Println(readresponse)
+	cntentry = readresponse.Entities[0].GetCounterEntry()
+	fmt.Println("traffic cnt[in byte]: ", cntentry.Data.ByteCount)
 
+	// スリープ
+	fmt.Println("Now Sleeping for 5 seconds.")
+	cnt := 1
+	for {
+		cnt++
+		time.Sleep(time.Second * 1)
+		if (5 < cnt) {
+			break
+		}
+	}
+	fmt.Println("Now Getting up.")
+
+	// Counter 取得（スリープ後）
+	readclient, err = MyReadRequest(cntlInfo, readRequestInfo, client)
+	if err != nil {
+		// Error 処理
+	}
+
+	readresponse, err = readclient.Recv()
+	if err != nil {
+		// Error 処理
+		log.Fatal("Error. ", err)
+	}
+	cntentry = readresponse.Entities[0].GetCounterEntry()
+	fmt.Println("traffic cnt[in byte]: ", cntentry.Data.ByteCount)
 }
