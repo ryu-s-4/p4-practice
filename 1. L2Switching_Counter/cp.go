@@ -362,7 +362,7 @@ func MyReadRequest(
 	entities := make([]*v1.Entity, 0)
 
 	entity = v1.Entity{
-		Entity: v1.Entity_CounterEntry{
+		Entity: &v1.Entity_CounterEntry{
 			CounterEntry: MyNewCounterEntry(readreqInfo.params),
 		},
 	}
