@@ -397,11 +397,11 @@ func main() {
 		portNum   : byte[16], byte[17]
 	*/
 
-	binary.BigEndian.PutUint32(tableid, uint32(9999))  // TODO: replace with table id what you want.
-	binary.BigEndian.PutUint32(actionid, uint32(9999)) // TODO: replace with action id what you want.
+	binary.BigEndian.PutUint32(tableid, uint32(33618152))  // TODO: replace with table id what you want.
+	binary.BigEndian.PutUint32(actionid, uint32(16807247)) // TODO: replace with action id what you want.
 	binary.BigEndian.PutUint16(vlanID, uint16(100))      // TODO: replace with vlan-id what you want.
-	macAddr, _ = net.ParseMAC("00:11:22:33:44:55")     // TODO: replace with mac addr. what you want.
-	binary.BigEndian.PutUint16(portNum, uint16(1))     // TODO: replace with port num. what you want.
+	macAddr, _ = net.ParseMAC("c2:ad:c3:95:79:e5")     // TODO: replace with mac addr. what you want.
+	binary.BigEndian.PutUint16(portNum, uint16(0))     // TODO: replace with port num. what you want.
 
 	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
 	writeRequestInfo.params = append(writeRequestInfo.params, actionid...)
@@ -415,7 +415,7 @@ func main() {
 	}
 	log.Printf("WriteResponse: %v", writeResponse)
 
-	// TODO: MAC テーブル with VLAN にエントリ登録( to host3)
+	// TODO: MAC テーブル with VLAN にエントリ登録( to host5)
 	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
 	writeRequestInfo.updateType = "INSERT"
 	writeRequestInfo.entityType = "TableEntry"
@@ -428,11 +428,11 @@ func main() {
 		portNum   : byte[16], byte[17]
 	*/
 
-	binary.BigEndian.PutUint32(tableid, uint32(table "mac_vlan_exact" の id))  // TODO: replace with table id what you want.
-	binary.BigEndian.PutUint32(actionid, uint32(action "switching_vlan" の id)) // TODO: replace with action id what you want.
+	binary.BigEndian.PutUint32(tableid, uint32(33618152))  // TODO: replace with table id what you want.
+	binary.BigEndian.PutUint32(actionid, uint32(16807247)) // TODO: replace with action id what you want.
 	binary.BigEndian.PutUint16(vlanID, uint16(100))      // TODO: replace with vlan-id what you want.
-	macAddr, _ = net.ParseMAC("host1 の MAC Addr.")     // TODO: replace with mac addr. what you want.
-	binary.BigEndian.PutUint16(portNum, uint16(1))     // TODO: replace with port num. what you want.
+	macAddr, _ = net.ParseMAC("aa:92:0a:50:3b:fb")     // TODO: replace with mac addr. what you want.
+	binary.BigEndian.PutUint16(portNum, uint16(2))     // TODO: replace with port num. what you want.
 
 	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
 	writeRequestInfo.params = append(writeRequestInfo.params, actionid...)
@@ -459,8 +459,8 @@ func main() {
 		group-ID  : byte[16], byte[17]
 	*/
 
-	binary.BigEndian.PutUint32(tableid, uint32(table "mac_vlan_exact" の id))  // TODO: replace with table id what you want.
-	binary.BigEndian.PutUint32(actionid, uint32(action "broadcast_vlan" の id)) // TODO: replace with action id what you want.
+	binary.BigEndian.PutUint32(tableid, uint32(33618152))  // TODO: replace with table id what you want.
+	binary.BigEndian.PutUint32(actionid, uint32(16791577)) // TODO: replace with action id what you want.
 	binary.BigEndian.PutUint16(vlanID, uint16(100))      // TODO: replace with vlan-id what you want.
 	macAddr, _ = net.ParseMAC("ff:ff:ff:ff:ff:ff")     // TODO: replace with mac addr. what you want.
 	binary.BigEndian.PutUint16(groupID, uint16(1))     // TODO: replace with group id what you want.
