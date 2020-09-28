@@ -16,7 +16,7 @@ import (
 type ControllerInfo struct {
 	deviceid    uint64
 	roleid      uint64
-	electionid  v1.Uint128
+	electionid  *v1.Uint128
 	p4infoPath  string
 	devconfPath string
 }
@@ -26,12 +26,12 @@ func MyMasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamCh
 
 	update := v1.MasterArbitrationUpdate{
 		DeviceId:   cntlInfo.deviceid,
-		ElectionId: &cntlInfo.electionid}
+		ElectionId: cntlInfo.electionid}
 
-	request := v1.StreamMessageRequest{
+	request := &v1.StreamMessageRequest{
 		Update: &v1.StreamMessageRequest_Arbitration{Arbitration: &update}}
 
-	err := ch.Send(&request)
+	err := ch.Send(request)
 	if err != nil {
 		// Error 処理
 		return nil, err
@@ -107,7 +107,7 @@ func MySetForwardingPipelineConfig(cntlInfo ControllerInfo, actionType string, c
 
 	request := v1.SetForwardingPipelineConfigRequest{
 		DeviceId:   cntlInfo.deviceid,
-		ElectionId: &cntlInfo.electionid,
+		ElectionId: cntlInfo.electionid,
 		Action:     action,
 		Config:     config}
 
@@ -123,14 +123,14 @@ func main() {
 	// コントローラ情報を登録
 	cntlInfo := ControllerInfo{
 		deviceid:    0,
-		electionid:  v1.Uint128{High: 0, Low: 1},
-		p4infoPath:  "path to p4info file",
-		devconfPath: "path to devconf json file ",
+		electionid:  &v1.Uint128{High: 0, Low: 1},
+		p4infoPath:  "./switching_p4info.txt",
+		devconfPath: "./switching.json",
 	}
 
 	// 接続先サーバーのアドレスとポート番号
 	addr := "127.0.0.1"
-	port := "20050"
+	port := "50051"
 
 	// gRPC の connection 生成
 	conn, err := grpc.Dial(addr+":"+port, grpc.WithInsecure())
@@ -145,7 +145,7 @@ func main() {
 	// StreamChanel 確立(P4Runtime_StreamChannelClient を return)
 	ch, err := client.StreamChannel(context.TODO())
 	if err != nil {
-		// Error 処理
+		log.Fatal("client stream channel connection error.", err)
 	}
 
 	// Arbitration 処理（MasterArbitrationUpdate)

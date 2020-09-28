@@ -245,7 +245,7 @@ func MyNewEntry(entityType string, params []byte) (*v1.Entity, error) {
 		entity := v1.Entity{Entity: ent}
 		return &entity, nil
 
-	case "PacketPacketReplicationEngineEntry":
+	case "PacketReplicationEngineEntry":
 		ent := MyNewPacketReplicationEngineEntry(params)
 		entity := v1.Entity{Entity: ent}
 		return &entity, nil
@@ -261,7 +261,8 @@ func MyNewUpdate(updateType string, entityType string, params []byte) (*v1.Updat
 
 	entity, err := MyNewEntry(entityType, params)
 	if err != nil {
-		// Error 処理
+		log.Fatal("Error at MyNewUpdate.", err)
+		return nil, err
 	}
 
 	switch updateType {
@@ -298,7 +299,7 @@ func MyWriteRequest(
 	client v1.P4RuntimeClient) (*v1.WriteResponse, error) {
 
 	update, err := MyNewUpdate(writeRequestInfo.updateType, writeRequestInfo.entityType, writeRequestInfo.params)
-	updates := make([]*v1.Update, 10)
+	updates := make([]*v1.Update, 0)
 	updates = append(updates, update)
 
 	var atomisity v1.WriteRequest_Atomicity
@@ -322,7 +323,7 @@ func MyWriteRequest(
 
 	writeResponse, err := client.Write(context.TODO(), &writeRequest)
 	if err != nil {
-		// Error 処理
+		log.Fatal("Error at MyWriteRequest. ", err)
 	}
 
 	return writeResponse, nil
@@ -333,13 +334,13 @@ func main() {
 	cntlInfo := ControllerInfo{
 		deviceid:    0,
 		electionid:  v1.Uint128{High: 0, Low: 1},
-		p4infoPath:  "path to p4info file",
-		devconfPath: "path to devconf json file ",
+		p4infoPath:  "./switching_p4info.txt",
+		devconfPath: "./switching/switching.json",
 	}
 
 	// 接続先サーバーのアドレスとポート番号
 	addr := "127.0.0.1"
-	port := "20050"
+	port := "50051"
 
 	// gRPC の connection 生成
 	conn, err := grpc.Dial(addr+":"+port, grpc.WithInsecure())
@@ -400,7 +401,7 @@ func main() {
 	binary.BigEndian.PutUint32(tableid, uint32(33618152))  // TODO: replace with table id what you want.
 	binary.BigEndian.PutUint32(actionid, uint32(16807247)) // TODO: replace with action id what you want.
 	binary.BigEndian.PutUint16(vlanID, uint16(100))        // TODO: replace with vlan-id what you want.
-	macAddr, _ = net.ParseMAC("c2:ad:c3:95:79:e5")         // TODO: replace with mac addr. what you want.
+	macAddr, _ = net.ParseMAC("5e:0b:88:ee:ff:2b")         // TODO: replace with mac addr. what you want.
 	binary.BigEndian.PutUint16(portNum, uint16(0))         // TODO: replace with port num. what you want.
 
 	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
@@ -411,7 +412,7 @@ func main() {
 
 	writeResponse, err = MyWriteRequest(cntlInfo, writeRequestInfo, client)
 	if err != nil {
-		// Error 処理
+		log.Fatal("write request error.", err)
 	}
 	log.Printf("WriteResponse: %v", writeResponse)
 
@@ -431,7 +432,7 @@ func main() {
 	binary.BigEndian.PutUint32(tableid, uint32(33618152))  // TODO: replace with table id what you want.
 	binary.BigEndian.PutUint32(actionid, uint32(16807247)) // TODO: replace with action id what you want.
 	binary.BigEndian.PutUint16(vlanID, uint16(100))        // TODO: replace with vlan-id what you want.
-	macAddr, _ = net.ParseMAC("aa:92:0a:50:3b:fb")         // TODO: replace with mac addr. what you want.
+	macAddr, _ = net.ParseMAC("72:ac:82:22:6e:81")         // TODO: replace with mac addr. what you want.
 	binary.BigEndian.PutUint16(portNum, uint16(2))         // TODO: replace with port num. what you want.
 
 	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
@@ -488,6 +489,7 @@ func main() {
 		  - egress-port(32bit) : byte[4] ~ byte[7]
 		  - instance(32bit)    : byte[8] ~ byte[11]
 	*/
+
 	binary.BigEndian.PutUint32(groupID, uint32(1))
 	writeRequestInfo.params = append(writeRequestInfo.params, groupID...)
 
@@ -512,6 +514,10 @@ func main() {
 		// Error 処理
 	}
 	log.Printf("WriteResponse: %v", writeResponse)
+
+	var num int
+	fmt.Print("$ press any key.")
+	fmt.Scan(&num)
 
 	// TODO: Write Request で複数の VLAN-ID についてカウンタ値取得，表示
 	//   - 無限ループでコマンド受付．show コマンドで一覧表示，など．
