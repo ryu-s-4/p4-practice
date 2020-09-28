@@ -1,11 +1,6 @@
 package main
 
-import (
-	"encoding/binary"
-	"fmt"
-
-	v1 "github.com/p4lang/p4runtime/go/p4/v1"
-)
+import "fmt"
 
 /*
 func main() {
@@ -120,6 +115,7 @@ func main() {
 }
 */
 
+/*
 func main() {
 
 	params := make([]byte, 0)
@@ -160,4 +156,30 @@ func main() {
 		// fmt.Println("egress_port: ", r.EgressPort)
 		// fmt.Println("instanse   : ", r.Instance)
 	}
+}
+*/
+
+func main() {
+	actions := make([]map[string]interface{}, 0)
+
+	action := make(map[string]interface{}, 0)
+	action["id"] = uint32(10)
+	action["name"] = "action.sample"
+	action["params"] = make([]map[string]interface{}, 2)
+
+	var param map[string]interface{}
+
+	param = make(map[string]interface{}, 0)
+	param["id"] = uint32(10)
+	param["value"] = []byte{uint8(4), uint8(4)}
+	action["params"].([]map[string]interface{})[0] = param
+
+	param = make(map[string]interface{}, 0)
+	param["id"] = uint32(11)
+	param["value"] = []byte{uint8(8), uint8(8)}
+	action["params"].([]map[string]interface{})[1] = param
+
+	actions = append(actions, action)
+
+	fmt.Println(actions)
 }

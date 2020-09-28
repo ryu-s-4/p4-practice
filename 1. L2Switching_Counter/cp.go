@@ -31,15 +31,22 @@ type WriteRequestInfo struct {
 	params     []byte
 }
 
+type ReadRequestInfo struct {
+	entityTypes []string
+	params      []byte
+}
+
 // MyMasterArbitrationUpdate gets arbitration for the master
 func MyMasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamChannelClient) (*v1.MasterArbitrationUpdate, error) {
 
-	update := v1.MasterArbitrationUpdate{
-		DeviceId:   cntlInfo.deviceid,
-		ElectionId: &cntlInfo.electionid}
-
 	request := v1.StreamMessageRequest{
-		Update: &v1.StreamMessageRequest_Arbitration{Arbitration: &update}}
+		Update: &v1.StreamMessageRequest_Arbitration{
+			Arbitration: &v1.MasterArbitrationUpdate{
+				DeviceId:   cntlInfo.deviceid,
+				ElectionId: &cntlInfo.electionid,
+			},
+		},
+	}
 
 	err := ch.Send(&request)
 	if err != nil {
@@ -70,12 +77,16 @@ func MyMasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamCh
 	updateResponse := response.GetUpdate()
 	switch updateResponse.(type) {
 	case *v1.StreamMessageResponse_Arbitration:
-		arbitrationResponse := response.GetArbitration()
-		return arbitrationResponse, nil
+		arbitration := response.GetArbitration()
+		return arbitration, nil
+	case *v1.StreamMessageResponse_Packet:
+		packet := response.GetPacket()
+	case *v1.StreamMessageResponse_Digest:
+		digest := response.GetDigest()
+	case *v1.StreamMessageResponse_IdleTimeoutNotification:
+		idletimenotf := response.GetIdleTimeoutNotification()
 	default:
-		// Error 処理
-		err := fmt.Errorf("Error: Update Type is NOT StreamMessageResponse_Arbitration")
-		return nil, err
+		err := response.GetError()
 	}
 }
 
@@ -329,6 +340,47 @@ func MyWriteRequest(
 	return writeResponse, nil
 }
 
+// MyNewCounterEntry creates new CounterEntry instance.
+func MyNewCounterEntry(params []byte) *v1.CounterEntry {
+
+	counterEntry := v1.CounterEntry{
+		CounterId: uint32(10),
+		Index: &v1.Index{
+			Index: int64(10),
+		},
+	}
+	return &counterEntry
+}
+
+// MyReadRequest get read client for getting the data from data plane.
+func MyReadRequest(
+	cntlInfo ControllerInfo,
+	readreqInfo ReadRequestInfo,
+	client v1.P4RuntimeClient) (v1.P4Runtime_ReadClient, error) {
+
+	var entity v1.Entity
+	entities := make([]*v1.Entity, 0)
+
+	entity = v1.Entity{
+		Entity: v1.Entity_CounterEntry{
+			CounterEntry: MyNewCounterEntry(readreqInfo.params),
+		},
+	}
+	entities = append(entities, &entity)
+
+	readRequest := v1.ReadRequest{
+		DeviceId: cntlInfo.deviceid,
+		Entities: entities,
+	}
+
+	readclient, err := client.Read(context.TODO(), &readRequest)
+	if err != nil {
+		// Error 処理
+	}
+
+	return readclient, nil
+}
+
 func main() {
 	// コントローラ情報を登録
 	cntlInfo := ControllerInfo{
@@ -478,7 +530,7 @@ func main() {
 	}
 	log.Printf("WriteResponse: %v", writeResponse)
 
-	// TODO: Write Request でマルチキャストグループ登録
+	// TODO: マルチキャストグループ登録
 	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
 	writeRequestInfo.updateType = "INSERT"
 	writeRequestInfo.entityType = "PacketReplicationEngineEntry"
@@ -519,6 +571,26 @@ func main() {
 	fmt.Print("$ press any key.")
 	fmt.Scan(&num)
 
-	// TODO: Write Request で複数の VLAN-ID についてカウンタ値取得，表示
-	//   - 無限ループでコマンド受付．show コマンドで一覧表示，など．
+	// TODO: Read Request で Counter 値を取得
+	var readRequestInfo ReadRequestInfo
+	counterid := make([]byte, 4)
+	index := make([]byte, 8)
+
+	readRequestInfo.entityTypes = make([]string, 0)
+	readRequestInfo.entityTypes = append(readRequestInfo.entityTypes, "CounterEntry")
+	readRequestInfo.params = make([]byte, 0)
+	/*
+		counter-ID : byte[0] ~ byte[3]
+		index      : byte[4] ~ byte[11]
+	*/
+	readclient, err := MyReadRequest(cntlInfo, readRequestInfo, client)
+	if err != nil {
+		// Error 処理
+	}
+	readresponse, err := readclient.Recv()
+	if err != nil {
+		// Error 処理
+	}
+	fmt.Println(readresponse)
+
 }
