@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 /*
 func main() {
 	var entry v1.TableEntry
@@ -159,6 +157,7 @@ func main() {
 }
 */
 
+/*
 func main() {
 	actions := make([]map[string]interface{}, 0)
 
@@ -183,3 +182,4 @@ func main() {
 
 	fmt.Println(actions)
 }
+*/
