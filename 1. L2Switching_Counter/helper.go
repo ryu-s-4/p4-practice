@@ -3,11 +3,10 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 
+	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 )
@@ -27,8 +26,8 @@ type ConfigHelper struct {
 
 // EntryHelper is helper for Entry
 type EntryHelper struct {
-	TableEntry          []*TableEntryHelper          `json:"table_entries"`
-	MulticastGroupEntry []*MulticastGroupEntryHelper `json:"multicast_group_entries"`
+	TableEntries          []*TableEntryHelper          `json:"table_entries"`
+	MulticastGroupEntries []*MulticastGroupEntryHelper `json:"multicast_group_entries"`
 }
 
 // TableEntryHelper is helper for TableEntry.
@@ -47,11 +46,13 @@ func (t *TableEntryHelper) GetParams(key string) ([]byte, error) {
 }
 */
 
+// MulticastGroupEntryHelper ...
 type MulticastGroupEntryHelper struct {
 	Multicast_Group_ID uint32           `json:"multicast_group_id"`
 	Replicas           []*ReplicaHelper `json:"replicas"`
 }
 
+// ReplicaHelper ...
 type ReplicaHelper struct {
 	Egress_port uint32 `json:"egress_port"`
 	Instance    uint32 `json:"instance"`
@@ -60,8 +61,12 @@ type ReplicaHelper struct {
 // BuildTableEntry creates TableEntry object.
 func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, error) {
 
+	var flag bool
+
 	// Get table
+	// TODO: 事前に table 名から Table 構造体を逆引きする map 変数を作成
 	var table *config_v1.Table
+
 	for _, t := range p.Tables {
 		if t.Preamble.Name == h.Table {
 			table = t
@@ -77,9 +82,10 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 
 	// Get fieldmatch
 	var fieldmatch []*v1.FieldMatch
+
 	for key, value := range h.Match {
 
-		flag := false
+		flag = false
 		match := &config_v1.MatchField{}
 		for _, m := range table.MatchFields {
 			if m.Name == key {
@@ -108,12 +114,8 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 			fieldmatch = append(fieldmatch, fm)
 
 		case "LPM":
-			v, err := GetAddr(value.([]interface{})[0].(string))
-			if err != nil {
-				// Error 処理
-			}
+			v := net.ParseIP(value.([]interface{})[0].(string))
 			prefix := value.([]interface{})[1].(int32)
-
 			fm := &v1.FieldMatch{
 				FieldId: match.Id,
 				FieldMatchType: &v1.FieldMatch_Lpm{
@@ -126,26 +128,73 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 			fieldmatch = append(fieldmatch, fm)
 
 		case "TERNARY":
-			match := v1.FieldMatch_Ternary_{}
+			fm := &v1.FieldMatch{
+				FieldMatchType: &v1.FieldMatch_Ternary_{},
+			}
+
 		case "RANGE":
-			match := v1.FieldMatch_Range_{}
+			fm := &v1.FieldMatch{
+				FieldMatchType: &v1.FieldMatch_Range_{},
+			}
+
 		default:
-			match := v1.FieldMatch_Other{}
+			fm := &v1.FieldMatch{
+				FieldMatchType: &v1.FieldMatch_Other{},
+			}
 		}
 
 	}
 
 	// Get action
-}
+	// TODO: 事前に action 名から Action 構造体を逆引きする map 変数を作成
+	var action *config_v1.Action
 
-func GetAddr(addr string) ([]byte, error) {
+	for _, a := range p.Actions {
+		if a.Preamble.Name == h.Action_Name {
+			action = a
+			break
+		}
+	}
+	if action == nil {
+		// Error 処理（Not Found)
+	}
 
-	// MAC Addr.
-	return net.ParseMAC(addr)
+	// Get action id
+	actionid := action.Preamble.Id
 
-	// IPv4 Addr.
+	// Get action parameters
+	var action_params []*v1.Action_Param
 
-	// IPv6 Addr.
+	for _, param := range action.Params {
+		flag = false
+		for key, value := range h.Action_Params {
+			if key == param.Name {
+				action_param := &v1.Action_Param{
+					ParamId: param.Id,
+					Value:   value.([]byte), // TODO: MAC アドレス等の場合に net.ParseMAC 必要
+				}
+				action_params = append(action_params, action_param)
+			}
+		}
+		if flag == false {
+			// Error 処理 (Not Found)
+		}
+	}
+
+	// return TableEntry
+	tableentry := &v1.TableEntry{
+		TableId: tableid,
+		Match:   fieldmatch,
+		Action: &v1.TableAction{
+			Type: &v1.TableAction_Action{
+				Action: &v1.Action{
+					ActionId: actionid,
+					Params:   action_params,
+				},
+			},
+		},
+	}
+	return tableentry, nil
 }
 
 /*
@@ -155,28 +204,32 @@ func (h *EntryHelper) BuildMulticastGroupEntry() (*v1.MulticastGroupEntry, error
 
 func main() {
 
-	enthelp := EntryHelper{}
-	confhelp := ConfigHelper{}
+	runtime_path := "./runtime.json"
+	p4info_path := "./p4info.txt"
 
-	runtime, err := ioutil.ReadFile("./runtime.json")
+	runtime, err := ioutil.ReadFile(runtime_path)
 	if err != nil {
-		log.Fatal("Error.", err)
+		// ReadFile Error
+	}
+	p4info_row, err := ioutil.ReadFile(p4info_path)
+	if err != nil {
+		// ReadFile Error
 	}
 
-	if err := json.Unmarshal(runtime, &confhelp); err != nil {
-		log.Fatal("Error.", err)
+	entryhelper := EntryHelper{}
+	if err := json.Unmarshal(runtime, &entryhelper); err != nil {
+		// Error 処理
 	}
 
-	if err := json.Unmarshal(runtime, &enthelp); err != nil {
-		log.Fatal("Error.", err)
+	p4info := config_v1.P4Info{}
+	if err := proto.UnmarshalText(string(p4info_row), &p4info); err != nil {
+		// Error 処理
 	}
 
-	// fmt.Println(string(runtime))
-	// fmt.Println(confhelp.P4info)
-	switch enthelp.TableEntry[0].Match["hdr.ipv4.dstAddr"].(type) {
-	case []interface{}:
-		fmt.Println("OK")
-	default:
-		fmt.Println("NG")
+	for _, tableenthelper := range entryhelper.TableEntries {
+		tableentry, err := tableenthelper.BuildTableEntry(p4info)
+		if err != nil {
+			// Error 処理
+		}
 	}
 }
