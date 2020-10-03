@@ -2,20 +2,17 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 
 	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 )
-
-// P4InfoHelper is helper for p4info.
-type P4InfoHelper struct {
-	p4info    *config_v1.P4Info
-	enthelper EntryHelper
-}
 
 // ConfigHelper is helper for config setup.
 type ConfigHelper struct {
@@ -59,7 +56,7 @@ type ReplicaHelper struct {
 }
 
 // BuildTableEntry creates TableEntry object.
-func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, error) {
+func BuildTableEntry(h TableEntryHelper, p config_v1.P4Info) (*v1.TableEntry, error) {
 
 	var flag bool
 
@@ -75,6 +72,7 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 	}
 	if table == nil {
 		// Error 処理
+		log.Fatal("Error: Not Found Table.")
 	}
 
 	// Get table id
@@ -96,13 +94,14 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 		}
 		if flag != true {
 			// Error 処理
+			log.Fatal("Error: Not Found MatchField.")
 		}
 
 		switch match.GetMatchType().String() {
 
 		case "EXACT":
-			v := value.([]byte)
 
+			v := GetParam(value, match.Bitwidth)
 			fm := &v1.FieldMatch{
 				FieldId: match.Id,
 				FieldMatchType: &v1.FieldMatch_Exact_{
@@ -114,7 +113,9 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 			fieldmatch = append(fieldmatch, fm)
 
 		case "LPM":
-			v := net.ParseIP(value.([]interface{})[0].(string))
+
+			var v []byte
+			v = net.ParseIP(value.([]interface{})[0].(string))
 			prefix := value.([]interface{})[1].(int32)
 			fm := &v1.FieldMatch{
 				FieldId: match.Id,
@@ -128,19 +129,25 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 			fieldmatch = append(fieldmatch, fm)
 
 		case "TERNARY":
-			fm := &v1.FieldMatch{
-				FieldMatchType: &v1.FieldMatch_Ternary_{},
-			}
+			/*
+				fm := &v1.FieldMatch{
+					FieldMatchType: &v1.FieldMatch_Ternary_{},
+				}
+			*/
 
 		case "RANGE":
-			fm := &v1.FieldMatch{
-				FieldMatchType: &v1.FieldMatch_Range_{},
-			}
+			/*
+				fm := &v1.FieldMatch{
+					FieldMatchType: &v1.FieldMatch_Range_{},
+				}
+			*/
 
 		default:
-			fm := &v1.FieldMatch{
-				FieldMatchType: &v1.FieldMatch_Other{},
-			}
+			/*
+				fm := &v1.FieldMatch{
+					FieldMatchType: &v1.FieldMatch_Other{},
+				}
+			*/
 		}
 
 	}
@@ -156,7 +163,7 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 		}
 	}
 	if action == nil {
-		// Error 処理（Not Found)
+		log.Fatal("Error: Not Found Action.")
 	}
 
 	// Get action id
@@ -165,19 +172,24 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 	// Get action parameters
 	var action_params []*v1.Action_Param
 
+	// var a int // DEBUG
 	for _, param := range action.Params {
 		flag = false
 		for key, value := range h.Action_Params {
 			if key == param.Name {
+				// fmt.Println(GetActionParam(value, width)) // DEBUG
+				// fmt.Scan(&a)                              // DEBUG
 				action_param := &v1.Action_Param{
 					ParamId: param.Id,
-					Value:   value.([]byte), // TODO: MAC アドレス等の場合に net.ParseMAC 必要
+					Value:   GetParam(value, param.Bitwidth), // TODO: MAC アドレス等の場合に net.ParseMAC 必要
 				}
 				action_params = append(action_params, action_param)
+				flag = true
+				break
 			}
 		}
 		if flag == false {
-			// Error 処理 (Not Found)
+			log.Fatal("Error: Not Found Action Params.")
 		}
 	}
 
@@ -197,6 +209,45 @@ func (h *TableEntryHelper) BuildTableEntry(p config_v1.P4Info) (*v1.TableEntry, 
 	return tableentry, nil
 }
 
+// GetActionParam gets action parameter in []byte
+func GetParam(value interface{}, width int32) []byte {
+
+	var param []byte
+	switch value.(type) {
+
+	case float64:
+		param = make([]byte, 8)
+		binary.LittleEndian.PutUint64(param, uint64(value.(float64)))
+
+	case string:
+		if width == 48 {
+			param, _ = net.ParseMAC(value.(string))
+		} else {
+			param = net.ParseIP(value.(string))
+		}
+
+	default:
+		param = make([]byte, 0)
+	}
+
+	var upper int
+	if width%8 == 0 {
+		upper = int(width / 8)
+	} else {
+		upper = int(width/8) + 1
+	}
+
+	/*
+		var a int
+		fmt.Println("parameter: ", param)         // DEBUG
+		fmt.Println("upper    : ", upper)         // DEBUG
+		fmt.Println("param    : ", param[:upper]) // DEBUG
+		fmt.Scan(&a)
+	*/
+
+	return param[:upper]
+}
+
 /*
 func (h *EntryHelper) BuildMulticastGroupEntry() (*v1.MulticastGroupEntry, error) {
 }
@@ -205,7 +256,7 @@ func (h *EntryHelper) BuildMulticastGroupEntry() (*v1.MulticastGroupEntry, error
 func main() {
 
 	runtime_path := "./runtime.json"
-	p4info_path := "./p4info.txt"
+	p4info_path := "./switching_p4info.txt"
 
 	runtime, err := ioutil.ReadFile(runtime_path)
 	if err != nil {
@@ -216,7 +267,7 @@ func main() {
 		// ReadFile Error
 	}
 
-	entryhelper := EntryHelper{}
+	var entryhelper EntryHelper
 	if err := json.Unmarshal(runtime, &entryhelper); err != nil {
 		// Error 処理
 	}
@@ -226,10 +277,14 @@ func main() {
 		// Error 処理
 	}
 
+	var tableentries []*v1.TableEntry
 	for _, tableenthelper := range entryhelper.TableEntries {
-		tableentry, err := tableenthelper.BuildTableEntry(p4info)
+		tableentry, err := BuildTableEntry(*tableenthelper, p4info)
 		if err != nil {
 			// Error 処理
+			log.Fatal("Error Build.")
 		}
+		tableentries = append(tableentries, tableentry)
 	}
+	fmt.Println(tableentries)
 }

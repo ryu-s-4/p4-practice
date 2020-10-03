@@ -4,43 +4,24 @@
     "bmv2_json": "build/multicast.json",
     "table_entries": [
       {
-        "table": "MyIngress.mac_lookup",
+        "table": "MyIngress.mac_exact",
         "match": {
           "hdr.ethernet.dstAddr": "08:00:00:00:01:11"
         },
-        "action_name": "MyIngress.mac_forward",
+        "action_name": "MyIngress.switching",
         "action_params": {
           "port": 1
         }
       },
       {
-        "table": "MyIngress.mac_lookup",
+        "table": "MyIngress.mac_vlan_exact",
         "match": {
+          "hdr.vlan.id": 100,
           "hdr.ethernet.dstAddr": "08:00:00:00:02:22"
         },
-        "action_name": "MyIngress.mac_forward",
+        "action_name": "MyIngress.switching",
         "action_params": {
           "port": 2
-        }
-      },
-      {
-        "table": "MyIngress.mac_lookup",
-        "match": {
-          "hdr.ethernet.dstAddr": "08:00:00:00:03:33"
-        },
-        "action_name": "MyIngress.mac_forward",
-        "action_params": {
-          "port": 3
-        }
-      },
-      {
-        "table": "MyIngress.mac_lookup",
-        "match": {
-          "hdr.ethernet.dstAddr": "08:00:00:00:04:44"
-        },
-        "action_name": "MyIngress.mac_forward",
-        "action_params": {
-          "port": 4
         }
       }
     ],
