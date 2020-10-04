@@ -1,5 +1,4 @@
-// package helper
-package main
+package helper
 
 import (
 	"encoding/binary"
@@ -209,8 +208,15 @@ func BuildTableEntry(h TableEntryHelper, p config_v1.P4Info) (*v1.TableEntry, er
 	return tableentry, nil
 }
 
-// GetActionParam gets action parameter in []byte
+// GetParam gets action parameter in []byte
 func GetParam(value interface{}, width int32) []byte {
+
+	var upper int
+	if width%8 == 0 {
+		upper = int(width / 8)
+	} else {
+		upper = int(width/8) + 1
+	}
 
 	var param []byte
 	switch value.(type) {
@@ -221,20 +227,20 @@ func GetParam(value interface{}, width int32) []byte {
 
 	case string:
 		if width == 48 {
-			param, _ = net.ParseMAC(value.(string))
+			var err error
+			param, err = net.ParseMAC(value.(string))
+			if err != nil {
+				// Error 処理
+			}
 		} else {
 			param = net.ParseIP(value.(string))
+			if param == nil {
+				// Error 処理
+			}
 		}
 
 	default:
-		param = make([]byte, 0)
-	}
-
-	var upper int
-	if width%8 == 0 {
-		upper = int(width / 8)
-	} else {
-		upper = int(width/8) + 1
+		param = make([]byte, upper)
 	}
 
 	/*
@@ -248,10 +254,25 @@ func GetParam(value interface{}, width int32) []byte {
 	return param[:upper]
 }
 
-/*
-func (h *EntryHelper) BuildMulticastGroupEntry() (*v1.MulticastGroupEntry, error) {
+// BuildMulticastGroupEntry creates MulticastGroupEntry.
+func BuildMulticastGroupEntry(h MulticastGroupEntryHelper) *v1.MulticastGroupEntry {
+
+	// Get multicast group id
+	groupid := h.Multicast_Group_ID
+
+	// Get Replicas
+	replicas := make([]*v1.Replica, 0)
+	for _, r := range h.Replicas {
+		replicas = append(replicas, &v1.Replica{EgressPort: r.Egress_port, Instance: r.Instance})
+	}
+
+	multicastgroupentry := &v1.MulticastGroupEntry{
+		MulticastGroupId: groupid,
+		Replicas:         replicas,
+	}
+
+	return multicastgroupentry
 }
-*/
 
 func main() {
 
@@ -286,5 +307,14 @@ func main() {
 		}
 		tableentries = append(tableentries, tableentry)
 	}
-	fmt.Println(tableentries)
+	// fmt.Println(tableentries)
+
+	var multicastgroupenties []*v1.MulticastGroupEntry
+	for _, multicastgroupenthelper := range entryhelper.MulticastGroupEntries {
+		multicastgroupentry := BuildMulticastGroupEntry(*multicastgroupenthelper)
+		multicastgroupenties = append(multicastgroupenties, multicastgroupentry)
+	}
+	for _, m := range multicastgroupenties {
+		fmt.Println(m)
+	}
 }
