@@ -2,28 +2,36 @@ package helper
 
 import (
 	"encoding/binary"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 
-	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 )
 
 // ConfigHelper is helper for config setup.
+/*
 type ConfigHelper struct {
 	Target    string `json:"target"`
 	P4info    string `json:"p4info"`
 	BMv2_json string `json:"bmv2_json"`
 }
+*/
 
 // EntryHelper is helper for Entry
 type EntryHelper struct {
+	ExternEntries         []*ExternEntryHelper         `json:"extern_entries"`
 	TableEntries          []*TableEntryHelper          `json:"table_entries"`
+	MeterEntries          []*MeterEntryHelper          `json:"meter_entries"`
+	CounterEntries        []*CounterEntryHelper        `json:"counter_entries"`
 	MulticastGroupEntries []*MulticastGroupEntryHelper `json:"multicast_group_entries"`
+	RegisterEntries       []*RegisterEntryHelper       `json:"register_entries"`
+	DigestEntries         []*DigestEntryHelper         `json:digest_entries"`
+}
+
+// ExternEntryHelper is helper for ExternEntry.
+type ExternEntryHelper struct {
+	dammy int
 }
 
 // TableEntryHelper is helper for TableEntry.
@@ -34,13 +42,15 @@ type TableEntryHelper struct {
 	Action_Params map[string]interface{} `json:"action_params"`
 }
 
-/*
-// GetParams gets action parameters corresponding to key in []byte.
-func (t *TableEntryHelper) GetParams(key string) ([]byte, error) {
-	// key で action parameter を取得し []byte に変換して値を返す
-	// MAC アドレス，IPv4 アドレス，IPv6 アドレスのパースにも対応（したい）
+// MeterEntryHelper is helper for MeterEntry.
+type MeterEntryHelper struct {
+	dammy int
 }
-*/
+
+// CounterEntryHelper is helper for CounterEntry.
+type CounterEntryHelper struct {
+	dammy int
+}
 
 // MulticastGroupEntryHelper ...
 type MulticastGroupEntryHelper struct {
@@ -54,8 +64,13 @@ type ReplicaHelper struct {
 	Instance    uint32 `json:"instance"`
 }
 
-// BuildTableEntry creates TableEntry object.
-func BuildTableEntry(h TableEntryHelper, p config_v1.P4Info) (*v1.TableEntry, error) {
+// RegisterEntryHepler is hepler for RegisterEntry.
+type RegisterEntryHelper struct {
+	dammy int
+}
+
+// BuildTableEntry creates TableEntry in the form of Entity_TableEntry.
+func BuildTableEntry(h TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableEntry, error) {
 
 	var flag bool
 
@@ -171,13 +186,10 @@ func BuildTableEntry(h TableEntryHelper, p config_v1.P4Info) (*v1.TableEntry, er
 	// Get action parameters
 	var action_params []*v1.Action_Param
 
-	// var a int // DEBUG
 	for _, param := range action.Params {
 		flag = false
 		for key, value := range h.Action_Params {
 			if key == param.Name {
-				// fmt.Println(GetActionParam(value, width)) // DEBUG
-				// fmt.Scan(&a)                              // DEBUG
 				action_param := &v1.Action_Param{
 					ParamId: param.Id,
 					Value:   GetParam(value, param.Bitwidth), // TODO: MAC アドレス等の場合に net.ParseMAC 必要
@@ -205,7 +217,12 @@ func BuildTableEntry(h TableEntryHelper, p config_v1.P4Info) (*v1.TableEntry, er
 			},
 		},
 	}
-	return tableentry, nil
+
+	entityTableEntry := v1.Entity_TableEntry{
+		TableEntry: &tableentry,
+	}
+
+	return entityTableEntry, nil
 }
 
 // GetParam gets action parameter in []byte
@@ -254,8 +271,8 @@ func GetParam(value interface{}, width int32) []byte {
 	return param[:upper]
 }
 
-// BuildMulticastGroupEntry creates MulticastGroupEntry.
-func BuildMulticastGroupEntry(h MulticastGroupEntryHelper) *v1.MulticastGroupEntry {
+// BuildMulticastGroupEntry creates MulticastGroupEntry in the form of Entity_PacketRelicationEngineEntry.
+func BuildMulticastGroupEntry(h MulticastGroupEntryHelper) (*v1.Entity_PacketReplicationEngineEntry, error) {
 
 	// Get multicast group id
 	groupid := h.Multicast_Group_ID
@@ -271,13 +288,52 @@ func BuildMulticastGroupEntry(h MulticastGroupEntryHelper) *v1.MulticastGroupEnt
 		Replicas:         replicas,
 	}
 
-	return multicastgroupentry
+	entity_PacketReplicationEngineEntry := v1.Entity_PacketReplicationEngineEntry{
+		PacketReplicationEngineEntry: &v1.PacketReplicationEngineEntry{
+			Type: &v1.PacketReplicationEngineEntry_MulticastGroupEntry{
+				MulticastgroupEntry: multicastgroupentry,
+			},
+		},
+	}
+
+	return entity_PacketReplicationEngineEntry, nil
 }
 
+// NewUpdate creates new Update instance.
+func NewUpdate(updateType string, entity *v1.Entity) (*v1.Update, error) {
+
+	switch updateType {
+	case "INSERT":
+		update := v1.Update{
+			Type:   v1.Update_INSERT,
+			Entity: entity}
+		return &update, nil
+
+	case "MODIFY":
+		update := v1.Update{
+			Type:   v1.Update_MODIFY,
+			Entity: entity}
+		return &update, nil
+
+	case "DELETE":
+		update := v1.Update{
+			Type:   v1.Update_DELETE,
+			Entity: entity}
+		return &update, nil
+
+	default:
+		update := v1.Update{
+			Type:   v1.Update_UNSPECIFIED,
+			Entity: entity}
+		return &update, nil
+	}
+}
+
+/*
 func main() {
 
-	runtime_path := "./runtime.json"
-	p4info_path := "./switching_p4info.txt"
+	runtime_path := "../runtime.json"
+	p4info_path := "../switching_p4info.txt"
 
 	runtime, err := ioutil.ReadFile(runtime_path)
 	if err != nil {
@@ -307,14 +363,12 @@ func main() {
 		}
 		tableentries = append(tableentries, tableentry)
 	}
-	// fmt.Println(tableentries)
+	fmt.Println(tableentries)
 
 	var multicastgroupenties []*v1.MulticastGroupEntry
 	for _, multicastgroupenthelper := range entryhelper.MulticastGroupEntries {
 		multicastgroupentry := BuildMulticastGroupEntry(*multicastgroupenthelper)
 		multicastgroupenties = append(multicastgroupenties, multicastgroupentry)
 	}
-	for _, m := range multicastgroupenties {
-		fmt.Println(m)
-	}
 }
+*/

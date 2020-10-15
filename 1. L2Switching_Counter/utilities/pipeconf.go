@@ -9,15 +9,6 @@ import (
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 )
 
-// ControllerInfo is information for the controller
-type ControllerInfo struct {
-	deviceid    uint64
-	roleid      uint64
-	electionid  v1.Uint128
-	p4infoPath  string
-	devconfPath string
-}
-
 // MyCreateConfig creates config data for SetForwardingPipelineConfig
 func MyCreateConfig(p4infoPath string, devconfPath string) (*v1.ForwardingPipelineConfig, error) {
 

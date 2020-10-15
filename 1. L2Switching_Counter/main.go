@@ -3,17 +3,97 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"time"
+
+	h "utilities/helper"
 
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 	"google.golang.org/grpc"
 )
 
+// SendWriteRequest sends write request to the data plane.
+func SendWriteRequest(
+	cntlInfo ControllerInfo,
+	writeRequestInfo WriteRequestInfo,
+	client v1.P4RuntimeClient) (*v1.WriteResponse, error) {
+
+	update, err := MyNewUpdate(writeRequestInfo.updateType, writeRequestInfo.entityType, writeRequestInfo.params)
+	updates := make([]*v1.Update, 0)
+	updates = append(updates, update)
+
+	var atomisity v1.WriteRequest_Atomicity
+	switch writeRequestInfo.atomisity {
+	case "CONTINUE_ON_ERROR":
+		atomisity = v1.WriteRequest_CONTINUE_ON_ERROR
+	case "ROLLBACK_ON_ERROR": // Optional
+		atomisity = v1.WriteRequest_ROLLBACK_ON_ERROR
+	case "DATAPLANE_ATOMIC": // Optional
+		atomisity = v1.WriteRequest_DATAPLANE_ATOMIC
+	default:
+		atomisity = v1.WriteRequest_CONTINUE_ON_ERROR
+	}
+
+	writeRequest := v1.WriteRequest{
+		DeviceId:   cntlInfo.deviceid,
+		ElectionId: &cntlInfo.electionid,
+		Updates:    updates,
+		Atomicity:  atomisity,
+	}
+
+	writeResponse, err := client.Write(context.TODO(), &writeRequest)
+	if err != nil {
+		log.Fatal("Error at MyWriteRequest. ", err)
+	}
+
+	return writeResponse, nil
+}
+
+// CreateReadClient creates New ReadClient.
+func CreateReadClient(
+	cntlInfo ControllerInfo,
+	readreqInfo ReadRequestInfo,
+	client v1.P4RuntimeClient) (*v1.P4Runtime_ReadClient, error) {
+
+	var entity v1.Entity
+	entities := make([]*v1.Entity, 0)
+
+	entity = v1.Entity{
+		Entity: &v1.Entity_CounterEntry{
+			CounterEntry: MyNewCounterEntry(readreqInfo.params),
+		},
+	}
+	entities = append(entities, &entity)
+
+	readRequest := v1.ReadRequest{
+		DeviceId: cntlInfo.deviceid,
+		Entities: entities,
+	}
+
+	readclient, err := client.Read(context.TODO(), &readRequest)
+	if err != nil {
+		// Error 処理
+	}
+
+	return &readclient, nil
+}
+
+// ControllerInfo is information for the controller
+type ControllerInfo struct {
+	deviceid    uint64
+	roleid      uint64
+	electionid  v1.Uint128
+	p4infoPath  string
+	devconfPath string
+}
+
 func main() {
-	// コントローラ情報を登録
+
+	// コントローラ情報を設定
 	cntlInfo := ControllerInfo{
 		deviceid:    0,
 		electionid:  v1.Uint128{High: 0, Low: 1},
@@ -56,204 +136,37 @@ func main() {
 	}
 	log.Printf("SetForwardingPipelineConfigResponse: %v", setforwardingpipelineconfigResponse)
 
-	// TODO: Write Request でテーブルエントリ登録
-	var writeRequestInfo WriteRequestInfo
-	var writeResponse *v1.WriteResponse
-
-	tableid := make([]byte, 4)
-	actionid := make([]byte, 4)
-	vlanID := make([]byte, 2)
-	macAddr := make([]byte, 6)
-	portNum := make([]byte, 2)
-	groupID := make([]byte, 4)
-	replica := make([]byte, 8)
-
-	// TODO: MAC テーブル with VLAN にエントリ登録（to host1)
-	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
-	writeRequestInfo.updateType = "INSERT"
-	writeRequestInfo.entityType = "TableEntry"
-	writeRequestInfo.params = make([]byte, 0)
-	/*
-		table-ID  : byte[0] ~ byte[3]
-		action-ID : byte[4] ~ byte[7]
-		VLAN-ID   : byte[8], byte[9]
-		MAC       : byte[10] ~ byte[15]
-		portNum   : byte[16], byte[17]
-	*/
-
-	binary.BigEndian.PutUint32(tableid, uint32(33618152))  // TODO: replace with table id what you want.
-	binary.BigEndian.PutUint32(actionid, uint32(16807247)) // TODO: replace with action id what you want.
-	binary.BigEndian.PutUint16(vlanID, uint16(100))        // TODO: replace with vlan-id what you want.
-	macAddr, _ = net.ParseMAC("5e:0b:88:ee:ff:2b")         // TODO: replace with mac addr. what you want.
-	binary.BigEndian.PutUint16(portNum, uint16(0))         // TODO: replace with port num. what you want.
-
-	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
-	writeRequestInfo.params = append(writeRequestInfo.params, actionid...)
-	writeRequestInfo.params = append(writeRequestInfo.params, vlanID...)
-	writeRequestInfo.params = append(writeRequestInfo.params, macAddr...)
-	writeRequestInfo.params = append(writeRequestInfo.params, portNum...)
-
-	writeResponse, err = MyWriteRequest(cntlInfo, writeRequestInfo, client)
-	if err != nil {
-		log.Fatal("write request error.", err)
-	}
-	log.Printf("WriteResponse: %v", writeResponse)
-
-	// TODO: MAC テーブル with VLAN にエントリ登録( to host5)
-	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
-	writeRequestInfo.updateType = "INSERT"
-	writeRequestInfo.entityType = "TableEntry"
-	writeRequestInfo.params = make([]byte, 0)
-	/*
-		table-ID  : byte[0] ~ byte[3]
-		action-ID : byte[4] ~ byte[7]
-		VLAN-ID   : byte[8], byte[9]
-		MAC       : byte[10] ~ byte[15]
-		portNum   : byte[16], byte[17]
-	*/
-
-	binary.BigEndian.PutUint32(tableid, uint32(33618152))  // TODO: replace with table id what you want.
-	binary.BigEndian.PutUint32(actionid, uint32(16807247)) // TODO: replace with action id what you want.
-	binary.BigEndian.PutUint16(vlanID, uint16(100))        // TODO: replace with vlan-id what you want.
-	macAddr, _ = net.ParseMAC("72:ac:82:22:6e:81")         // TODO: replace with mac addr. what you want.
-	binary.BigEndian.PutUint16(portNum, uint16(2))         // TODO: replace with port num. what you want.
-
-	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
-	writeRequestInfo.params = append(writeRequestInfo.params, actionid...)
-	writeRequestInfo.params = append(writeRequestInfo.params, vlanID...)
-	writeRequestInfo.params = append(writeRequestInfo.params, macAddr...)
-	writeRequestInfo.params = append(writeRequestInfo.params, portNum...)
-
-	writeResponse, err = MyWriteRequest(cntlInfo, writeRequestInfo, client)
-	if err != nil {
-		// Error 処理
-	}
-	log.Printf("WriteResponse: %v", writeResponse)
-
-	// TODO: ブロードキャストテーブル登録
-	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
-	writeRequestInfo.updateType = "INSERT"
-	writeRequestInfo.entityType = "TableEntry"
-	writeRequestInfo.params = make([]byte, 0)
-	/*
-		table-ID  : byte[0] ~ byte[3]
-		action-ID : byte[4] ~ byte[7]
-		VLAN-ID   : byte[8], byte[9]
-		MAC       : byte[10] ~ byte[15]
-		group-ID  : byte[16], byte[17]
-	*/
-
-	binary.BigEndian.PutUint32(tableid, uint32(33618152))  // TODO: replace with table id what you want.
-	binary.BigEndian.PutUint32(actionid, uint32(16791577)) // TODO: replace with action id what you want.
-	binary.BigEndian.PutUint16(vlanID, uint16(100))        // TODO: replace with vlan-id what you want.
-	macAddr, _ = net.ParseMAC("ff:ff:ff:ff:ff:ff")         // TODO: replace with mac addr. what you want.
-	binary.BigEndian.PutUint16(groupID, uint16(1))         // TODO: replace with group id what you want.
-
-	writeRequestInfo.params = append(writeRequestInfo.params, tableid...)
-	writeRequestInfo.params = append(writeRequestInfo.params, actionid...)
-	writeRequestInfo.params = append(writeRequestInfo.params, vlanID...)
-	writeRequestInfo.params = append(writeRequestInfo.params, macAddr...)
-	writeRequestInfo.params = append(writeRequestInfo.params, groupID...)
-
-	writeResponse, err = MyWriteRequest(cntlInfo, writeRequestInfo, client)
-	if err != nil {
-		// Error 処理
-	}
-	log.Printf("WriteResponse: %v", writeResponse)
-
-	// TODO: マルチキャストグループ登録
-	writeRequestInfo.atomisity = "CONTINUE_ON_ERROR"
-	writeRequestInfo.updateType = "INSERT"
-	writeRequestInfo.entityType = "PacketReplicationEngineEntry"
-	writeRequestInfo.params = make([]byte, 0)
-	/*
-		group-ID : byte[0] ~ byte[3]
-		replica
-		  - egress-port(32bit) : byte[4] ~ byte[7]
-		  - instance(32bit)    : byte[8] ~ byte[11]
-	*/
-
-	binary.BigEndian.PutUint32(groupID, uint32(1))
-	writeRequestInfo.params = append(writeRequestInfo.params, groupID...)
-
-	binary.BigEndian.PutUint32(replica[0:4], uint32(0))
-	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
-	writeRequestInfo.params = append(writeRequestInfo.params, replica...)
-
-	binary.BigEndian.PutUint32(replica[0:4], uint32(1))
-	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
-	writeRequestInfo.params = append(writeRequestInfo.params, replica...)
-
-	binary.BigEndian.PutUint32(replica[0:4], uint32(2))
-	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
-	writeRequestInfo.params = append(writeRequestInfo.params, replica...)
-
-	binary.BigEndian.PutUint32(replica[0:4], uint32(3))
-	binary.BigEndian.PutUint32(replica[4:8], uint32(1))
-	writeRequestInfo.params = append(writeRequestInfo.params, replica...)
-
-	writeResponse, err = MyWriteRequest(cntlInfo, writeRequestInfo, client)
-	if err != nil {
-		// Error 処理
-	}
-	log.Printf("WriteResponse: %v", writeResponse)
-
-	// TODO: Read Request で Counter 値を取得
-	var readRequestInfo ReadRequestInfo
-	counterid := make([]byte, 4)
-	index := make([]byte, 8)
-
-	binary.BigEndian.PutUint32(counterid, uint32(99))
-	binary.BigEndian.PutUint64(index, uint64(1))
-	readRequestInfo.params = append(readRequestInfo.params, counterid...)
-	readRequestInfo.params = append(readRequestInfo.params, index...)
-
-	readRequestInfo.entityTypes = make([]string, 0)
-	readRequestInfo.entityTypes = append(readRequestInfo.entityTypes, "CounterEntry")
-	readRequestInfo.params = make([]byte, 0)
-	/*
-		counter-ID : byte[0] ~ byte[3]
-		index      : byte[4] ~ byte[11]
-	*/
-	readclient, err := MyReadRequest(cntlInfo, readRequestInfo, client)
+	// P4Info を読み込み
+	p4infoText, err := ioutil.ReadFile(cntlinfo.p4infopath)
 	if err != nil {
 		// Error 処理
 	}
 
-	// Counter 取得（スリープ前）
-	var cntentry *v1.CounterEntry
-	var readresponse *v1.ReadResponse
-
-	readresponse, err = readclient.Recv()
-	if err != nil {
-		// Error 処理
-	}
-	cntentry = readresponse.Entities[0].GetCounterEntry()
-	fmt.Println("traffic cnt[in byte]: ", cntentry.Data.ByteCount)
-
-	// スリープ
-	fmt.Println("Now Sleeping for 5 seconds.")
-	cnt := 1
-	for {
-		cnt++
-		time.Sleep(time.Second * 1)
-		if 5 < cnt {
-			break
-		}
-	}
-	fmt.Println("Now Getting up.")
-
-	// Counter 取得（スリープ後）
-	readclient, err = MyReadRequest(cntlInfo, readRequestInfo, client)
-	if err != nil {
+	var p4info config_v1.P4Info
+	if err := proto.UnmarshalText(string(p4infoText, &p4info); err != nil {
 		// Error 処理
 	}
 
-	readresponse, err = readclient.Recv()
+	// helper を使って table entry を読み込み
+	entries, err := ioutil.ReadFile(runtime_path)
 	if err != nil {
-		// Error 処理
-		log.Fatal("Error. ", err)
+		// ReadFile Error
 	}
-	cntentry = readresponse.Entities[0].GetCounterEntry()
-	fmt.Println("traffic cnt[in byte]: ", cntentry.Data.ByteCount)
+
+	var entryhelper h.EntryHelper
+	if err := json.Unmarshal(entries, &entryhelper); err != nil {
+		// Error 処理
+	}
+
+	// TableEntry を作成
+
+	// PacketReplicationEngineEntry を作成
+
+	// TableEntry の書き込み
+
+	// sleep １０秒くらい？
+
+	// CounterEntry を作成
+
+	// Counter 値を読み取るための Client を作成し，カウンタ値取得＋表示
 }

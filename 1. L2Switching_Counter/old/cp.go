@@ -81,12 +81,12 @@ func MyMasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamCh
 		arbitration := response.GetArbitration()
 		return arbitration, nil
 	/*
-	case *v1.StreamMessageResponse_Packet:
-		packet := response.GetPacket()
-	case *v1.StreamMessageResponse_Digest:
-		digest := response.GetDigest()
-	case *v1.StreamMessageResponse_IdleTimeoutNotification:
-		idletimenotf := response.GetIdleTimeoutNotification()
+		case *v1.StreamMessageResponse_Packet:
+			packet := response.GetPacket()
+		case *v1.StreamMessageResponse_Digest:
+			digest := response.GetDigest()
+		case *v1.StreamMessageResponse_IdleTimeoutNotification:
+			idletimenotf := response.GetIdleTimeoutNotification()
 	*/
 	default:
 		err := fmt.Errorf("Error: not supported. ")
@@ -390,8 +390,8 @@ func main() {
 	cntlInfo := ControllerInfo{
 		deviceid:    0,
 		electionid:  v1.Uint128{High: 0, Low: 1},
-		p4infoPath:  "./switching_p4info.txt",
-		devconfPath: "./switching/switching.json",
+		p4infoPath:  "../p4info.txt",
+		devconfPath: "../switching.json",
 	}
 
 	// 接続先サーバーのアドレスとポート番号
@@ -595,7 +595,7 @@ func main() {
 
 	// Counter 取得（スリープ前）
 	var cntentry *v1.CounterEntry
-	var readresponse *v1.ReadResponse 
+	var readresponse *v1.ReadResponse
 
 	readresponse, err = readclient.Recv()
 	if err != nil {
@@ -610,7 +610,7 @@ func main() {
 	for {
 		cnt++
 		time.Sleep(time.Second * 1)
-		if (5 < cnt) {
+		if 5 < cnt {
 			break
 		}
 	}
