@@ -93,7 +93,40 @@
       "action_params": {    
         "port": 2
       }    
-    }  
+    },
+    {  
+      "table": "MyIngress.mac_vlan_exact",
+      "match": {    
+        "hdr.vlan.id": 200,    
+        "hdr.ethernet.dstAddr": "5e:0b:88:ee:ff:2b"    
+      },    
+      "action_name": "MyIngress.switching_vlan",    
+      "action_params": {    
+        "port": 0
+      }
+    },
+    {  
+      "table": "MyIngress.mac_vlan_exact",
+      "match": {    
+        "hdr.vlan.id": 200,    
+        "hdr.ethernet.dstAddr": "4e:4f:5b:1a:78:35"    
+      },    
+      "action_name": "MyIngress.switching_vlan",    
+      "action_params": {    
+        "port": 1
+      }    
+    },
+    {  
+      "table": "MyIngress.mac_vlan_exact",
+      "match": {    
+        "hdr.vlan.id": 200,    
+        "hdr.ethernet.dstAddr": "ca:69:48:74:96:7a"    
+      },    
+      "action_name": "MyIngress.switching_vlan",    
+      "action_params": {    
+        "port": 3
+      }
+    }
   ],    
   "multicast_group_entries" : [   
     {   
