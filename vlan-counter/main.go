@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"time"
+	"os"
 
 	"github.com/p4-practice/vlan-counter/myutils"
 
@@ -176,7 +177,7 @@ func SendWriteRequest(
 func CreateReadClient(
 	cntlInfo ControllerInfo,
 	entities []*v1.Entity,
-	client v1.P4RuntimeClient) (*v1.P4Runtime_ReadClient, error) {
+	client v1.P4RuntimeClient) (v1.P4Runtime_ReadClient, error) {
 
 	readRequest := v1.ReadRequest{
 		DeviceId: cntlInfo.deviceid,
@@ -186,9 +187,10 @@ func CreateReadClient(
 	readclient, err := client.Read(context.TODO(), &readRequest)
 	if err != nil {
 		// Error 処理
+		return nil, err
 	}
 
-	return &readclient, nil
+	return readclient, nil
 }
 
 // ControllerInfo is information for the controller
@@ -233,21 +235,21 @@ func main() {
 		}
 
 		// Arbitration 処理（MasterArbitrationUpdate)
-		arbitrationResponse, err := MyMasterArbitrationUpdate(cntlInfo, ch)
+		_, err = MyMasterArbitrationUpdate(cntlInfo, ch)
 		if err != nil {
 			// Error 処理
 		}
-		log.Printf("ArbitrationResponse: %v", arbitrationResponse)
+		log.Printf("INFO: MasterArbitrationUpdate successfully done.")
 
 		// SetForwardingPipelineConfig 処理
 		actionType := "VERIFY_AND_COMMIT"
-		setforwardingpipelineconfigResponse, err := MySetForwardingPipelineConfig(cntlInfo, actionType, client)
+		_, err = MySetForwardingPipelineConfig(cntlInfo, actionType, client)
 		if err != nil {
 			// Error 処理
 		}
-		log.Printf("SetForwardingPipelineConfigResponse: %v", setforwardingpipelineconfigResponse)
+		log.Printf("INFO: SetForwardingPipelineConfig successfully done.")
 
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 2)
 
 	// P4Info を読み込み
 	p4infoText, err := ioutil.ReadFile(cntlInfo.p4infoPath)
@@ -261,7 +263,7 @@ func main() {
 		// Error 処理
 		log.Fatal("ERROR: cannot unmarshal p4info.txt.", err)
 	} else {
-		fmt.Println("INFO: Unmarshal P4Info.txt successfully.") // FOR DUBUG
+		log.Printf("INFO: Unmarshal P4Info.txt successfully.") // FOR DUBUG
 	}
 
 	// myutils を使って table entry を読み込み
@@ -276,7 +278,7 @@ func main() {
 		// Error 処理
 		log.Fatal("ERROR: cannot unmarshal runtime.", err)
 	} else {
-		fmt.Println("INFO: Unmarshal runtime file successfully.") // FOR DEBUG
+		log.Printf("INFO: Unmarshal runtime file successfully.") // FOR DEBUG
 	}
 	// fmt.Println(entryhelper) // FOR DEBUG
 
@@ -314,6 +316,7 @@ func main() {
 	// fmt.Println(updates) // FOR DEBUG
 
 	// Entity の書き込み
+	/*
 	for _, up := range updates {
 		ups := make([]*v1.Update, 0)
 		ups = append(ups, up)
@@ -327,12 +330,60 @@ func main() {
 		}
 		time.Sleep(time.Second * 2)
 	}
+	*/
+
+	_, err = SendWriteRequest(cntlInfo, updates, "CONTINUE_ON_ERROR", client)
+	if err != nil {
+		// Error 処理
+		log.Fatal("Error: WriteRequest Failed.", err)
+	} else {
+		log.Printf("INFO: Write entities successfully.")
+	}
 
 	// sleep １０秒くらい？
+	time.Sleep(time.Second * 2)
 
-	// CounterEntry を作成
+	// counter name と VLAN ID を入力するとカウンタ値を表示
+	var counter string
+	var index int64
+	fmt.Println("================= Counter Example ===============")
+	fmt.Println("usage: input [counter name] and [index = vlan ID]")
+	fmt.Println("       input \"exit\" if you want quit.")
+	fmt.Println("==================================================")
+	for {
+		fmt.Print("input counter name : ")
+		fmt.Scan(&counter)
+		if counter == "exit" {
+			log.Print("INFO: explicitlly exit. connection is going to down.")
+			break
+		}
+		fmt.Print("input counter name : ")
+		fmt.Scan(&index)
 
-	// Counter 値を読み取るための Client を作成し，カウンタ値取得＋表示
-
-	time.Sleep(time.Second * 5)
+		counterentryhelper := &myutils.CounterEntryHelper{
+			Counter: counter,
+			Index: index,
+		}
+		counterentry, err := myutils.BuildCounterEntry(counterentryhelper, p4info)
+		if err != nil {
+			log.Print("ERROR: cannot build CounterEntry. Invalid input.")
+			continue
+		}
+		entities := make([]*v1.Entity, 0)
+		entities = append(entities, &v1.Entity{ Entity: counterentry })
+		rclient, err := CreateReadClient(cntlInfo, entities, client)
+		if err != nil {
+			log.Fatal("ERROR: cannot create read client.", err)
+		} else {
+			readresponse, err := rclient.Recv()
+			if err != nil {
+				log.Fatal("ERROR: cannot get read response.", err)
+			}
+			entity := readresponse.GetEntities()
+			cnt := entity[0].GetCounterEntry()
+			fmt.Println("VLAN-ID: ", index)
+			fmt.Println("CNT NUM: ", cnt.Data.ByteCount)
+		}
+	}
+	os.Exit(0)
 }

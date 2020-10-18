@@ -181,11 +181,5 @@
         }    
       ]    
     }    
-  ],   
-  "counter_entries" : [
-    {    
-      "counter" : "MyIngress.traffic_cnt",
-      "index" : 100   
-    }    
-  ]    
+  ]  
 }

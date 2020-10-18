@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"log"
 	"net"
+	"fmt"
 
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
@@ -320,7 +321,8 @@ func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_Co
 	}
 	if flag == false {
 		// Error 処理
-		log.Fatal("Not Found.")
+		err := fmt.Errorf("cannot find counter instance.")
+		return nil, err
 	}
 
 	// return Counter
