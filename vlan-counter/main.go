@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 
-	"./myutils"
+	"github.com/p4-practice/vlan-counter/myutils"
 
 	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
@@ -199,8 +199,6 @@ type ControllerInfo struct {
 
 func main() {
 
-	/*
-
 		// コントローラ情報を設定
 		cntlInfo := ControllerInfo{
 			deviceid:    0,
@@ -243,8 +241,6 @@ func main() {
 			// Error 処理
 		}
 		log.Printf("SetForwardingPipelineConfigResponse: %v", setforwardingpipelineconfigResponse)
-
-	*/
 
 	// P4Info を読み込み
 	p4infoText, err := ioutil.ReadFile(cntlInfo.p4infoPath)
@@ -301,8 +297,6 @@ func main() {
 		updates = append(updates, update)
 	}
 
-	/*
-
 		// Entity の書き込み
 		writeResponse, err := SendWriteRequest(cntlInfo, updates, "CONTINUE_ON_ERROR", client)
 		if err != nil {
@@ -314,8 +308,6 @@ func main() {
 
 		// CounterEntry を作成
 
-		// Counter 値を読み取るための Client を作成し，カウンタ値取得＋表示
-
-	*/
+		// Counter 値を読み取るための Client を作成し，カウンタ値取得＋表示s
 
 }
