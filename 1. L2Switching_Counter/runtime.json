@@ -81,8 +81,8 @@
   ],   
   "counter_entries" : [
     {    
-      "counter" : "counter_name",
-      "id" : 999    
+      "counter" : "MyIngress.traffic_cnt",
+      "index" : 100   
     }    
   ]    
 }

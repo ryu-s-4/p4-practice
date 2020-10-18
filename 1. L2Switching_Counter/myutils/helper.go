@@ -1,4 +1,4 @@
-package helper
+package myutils
 
 import (
 	"encoding/binary"
@@ -49,7 +49,8 @@ type MeterEntryHelper struct {
 
 // CounterEntryHelper is helper for CounterEntry.
 type CounterEntryHelper struct {
-	dammy int
+	Counter string `json:"counter"`
+	Index   int64  `json:index"`
 }
 
 // MulticastGroupEntryHelper ...
@@ -69,8 +70,13 @@ type RegisterEntryHelper struct {
 	dammy int
 }
 
+// DigestEntryHelper is helper for DigestEntry.
+type DigestEntryHelper struct {
+	dammy int
+}
+
 // BuildTableEntry creates TableEntry in the form of Entity_TableEntry.
-func BuildTableEntry(h TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableEntry, error) {
+func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableEntry, error) {
 
 	var flag bool
 
@@ -205,21 +211,19 @@ func BuildTableEntry(h TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableEn
 	}
 
 	// return TableEntry
-	tableentry := &v1.TableEntry{
-		TableId: tableid,
-		Match:   fieldmatch,
-		Action: &v1.TableAction{
-			Type: &v1.TableAction_Action{
-				Action: &v1.Action{
-					ActionId: actionid,
-					Params:   action_params,
+	entityTableEntry := &v1.Entity_TableEntry{
+		TableEntry: &v1.TableEntry{
+			TableId: tableid,
+			Match:   fieldmatch,
+			Action: &v1.TableAction{
+				Type: &v1.TableAction_Action{
+					Action: &v1.Action{
+						ActionId: actionid,
+						Params:   action_params,
+					},
 				},
 			},
 		},
-	}
-
-	entityTableEntry := v1.Entity_TableEntry{
-		TableEntry: &tableentry,
 	}
 
 	return entityTableEntry, nil
@@ -272,7 +276,7 @@ func GetParam(value interface{}, width int32) []byte {
 }
 
 // BuildMulticastGroupEntry creates MulticastGroupEntry in the form of Entity_PacketRelicationEngineEntry.
-func BuildMulticastGroupEntry(h MulticastGroupEntryHelper) (*v1.Entity_PacketReplicationEngineEntry, error) {
+func BuildMulticastGroupEntry(h *MulticastGroupEntryHelper) (*v1.Entity_PacketReplicationEngineEntry, error) {
 
 	// Get multicast group id
 	groupid := h.Multicast_Group_ID
@@ -283,20 +287,51 @@ func BuildMulticastGroupEntry(h MulticastGroupEntryHelper) (*v1.Entity_PacketRep
 		replicas = append(replicas, &v1.Replica{EgressPort: r.Egress_port, Instance: r.Instance})
 	}
 
-	multicastgroupentry := &v1.MulticastGroupEntry{
-		MulticastGroupId: groupid,
-		Replicas:         replicas,
-	}
-
-	entity_PacketReplicationEngineEntry := v1.Entity_PacketReplicationEngineEntry{
+	// Return Entity_PacketReplicationEngineEntry
+	entity_PacketReplicationEngineEntry := &v1.Entity_PacketReplicationEngineEntry{
 		PacketReplicationEngineEntry: &v1.PacketReplicationEngineEntry{
 			Type: &v1.PacketReplicationEngineEntry_MulticastGroupEntry{
-				MulticastgroupEntry: multicastgroupentry,
+				MulticastGroupEntry: &v1.MulticastGroupEntry{
+					MulticastGroupId: groupid,
+					Replicas:         replicas,
+				},
 			},
 		},
 	}
 
 	return entity_PacketReplicationEngineEntry, nil
+}
+
+func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_CounterEntry, error) {
+
+	// get counter
+	var flag bool
+	var counter *config_v1.Counter
+
+	flag = false
+	for _, c := range p.Counters {
+		if (c.Preamble.Name == h.Counter) || (c.Preamble.Alias == h.Counter) {
+			counter = c
+			flag = true
+			break
+		}
+	}
+	if flag == false {
+		// Error 処理
+		log.Fatal("Not Found.")
+	}
+
+	// return Counter
+	entity_counterentry := &v1.Entity_CounterEntry{
+		CounterEntry: &v1.CounterEntry{
+			CounterId: counter.Preamble.Id,
+			Index: &v1.Index{
+				Index: h.Index,
+			},
+		},
+	}
+
+	return entity_counterentry, nil
 }
 
 // NewUpdate creates new Update instance.
@@ -333,42 +368,61 @@ func NewUpdate(updateType string, entity *v1.Entity) (*v1.Update, error) {
 func main() {
 
 	runtime_path := "../runtime.json"
-	p4info_path := "../switching_p4info.txt"
+	p4info_path := "../p4info.txt"
 
 	runtime, err := ioutil.ReadFile(runtime_path)
 	if err != nil {
 		// ReadFile Error
+		log.Fatal("Error")
 	}
+
 	p4info_row, err := ioutil.ReadFile(p4info_path)
 	if err != nil {
 		// ReadFile Error
+		log.Fatal("Error")
 	}
 
 	var entryhelper EntryHelper
 	if err := json.Unmarshal(runtime, &entryhelper); err != nil {
 		// Error 処理
+		log.Fatal("Error")
 	}
 
 	p4info := config_v1.P4Info{}
 	if err := proto.UnmarshalText(string(p4info_row), &p4info); err != nil {
 		// Error 処理
+		log.Fatal("Error")
 	}
 
-	var tableentries []*v1.TableEntry
+	var tableentries []*v1.Entity_TableEntry
 	for _, tableenthelper := range entryhelper.TableEntries {
-		tableentry, err := BuildTableEntry(*tableenthelper, p4info)
+		tableentry, err := BuildTableEntry(tableenthelper, p4info)
 		if err != nil {
 			// Error 処理
 			log.Fatal("Error Build.")
 		}
 		tableentries = append(tableentries, tableentry)
+		fmt.Println(tableentry) // For DEBUG
 	}
-	fmt.Println(tableentries)
 
-	var multicastgroupenties []*v1.MulticastGroupEntry
+	var multicastgroupenties []*v1.Entity_PacketReplicationEngineEntry
 	for _, multicastgroupenthelper := range entryhelper.MulticastGroupEntries {
-		multicastgroupentry := BuildMulticastGroupEntry(*multicastgroupenthelper)
+		multicastgroupentry, err := BuildMulticastGroupEntry(multicastgroupenthelper)
+		if err != nil {
+			// Error 処理
+		}
 		multicastgroupenties = append(multicastgroupenties, multicastgroupentry)
+		fmt.Println(multicastgroupentry) // For DEBUG
+	}
+
+	var counterentries []*v1.Entity_CounterEntry
+	for _, counterentryhelper := range entryhelper.CounterEntries {
+		counterentry, err := BuildCounterEntry(counterentryhelper, p4info)
+		if err != nil {
+			// Error 処理
+		}
+		counterentries = append(counterentries, counterentry)
+		fmt.Println(counterentry) // For DEBUG
 	}
 }
 */

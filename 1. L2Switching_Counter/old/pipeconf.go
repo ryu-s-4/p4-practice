@@ -1,4 +1,4 @@
-package pipeconf
+package myutils
 
 import (
 	"context"
