@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"time"
 
 	"github.com/p4-practice/vlan-counter/myutils"
 
 	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
+	"google.golang.org/grpc"
 )
 
 // MyMasterArbitrationUpdate gets arbitration for the master
@@ -163,7 +165,8 @@ func SendWriteRequest(
 
 	writeResponse, err := client.Write(context.TODO(), &writeRequest)
 	if err != nil {
-		log.Fatal("Error at MyWriteRequest. ", err)
+		// log.Fatal("Error at MyWriteRequest. ", err)
+		return nil, err
 	}
 
 	return writeResponse, nil
@@ -195,6 +198,7 @@ type ControllerInfo struct {
 	electionid  v1.Uint128
 	p4infoPath  string
 	devconfPath string
+	runconfPath string
 }
 
 func main() {
@@ -205,6 +209,7 @@ func main() {
 			electionid:  v1.Uint128{High: 0, Low: 1},
 			p4infoPath:  "./p4info.txt",
 			devconfPath: "./switching.json",
+			runconfPath: "./runtime.json",
 		}
 
 		// 接続先サーバーのアドレスとポート番号
@@ -242,72 +247,92 @@ func main() {
 		}
 		log.Printf("SetForwardingPipelineConfigResponse: %v", setforwardingpipelineconfigResponse)
 
+	time.Sleep(time.Second * 5)
+
 	// P4Info を読み込み
 	p4infoText, err := ioutil.ReadFile(cntlInfo.p4infoPath)
 	if err != nil {
 		// Error 処理
+		log.Fatal("ERROR: cannot read p4info file.")
 	}
-	fmt.Println("INFO: ReadFile successfully.") // FOR DEBUG
 
 	var p4info config_v1.P4Info
 	if err := proto.UnmarshalText(string(p4infoText), &p4info); err != nil {
 		// Error 処理
-		log.Fatal("Error: cannot unmarshal p4info.txt.", err)
+		log.Fatal("ERROR: cannot unmarshal p4info.txt.", err)
+	} else {
+		fmt.Println("INFO: Unmarshal P4Info.txt successfully.") // FOR DUBUG
 	}
-	fmt.Println("INFO: Unmarshal P4Info.txt successfully.") // FOR DUBUG
 
-	// helper を使って table entry を読み込み
-	entries, err := ioutil.ReadFile(cntlInfo.devconfPath)
+	// myutils を使って table entry を読み込み
+	entries, err := ioutil.ReadFile(cntlInfo.runconfPath)
 	if err != nil {
 		// ReadFile Error
-		log.Fatal("Error: cannot read file (runtime).")
+		log.Fatal("ERROR: cannot read file (runtime).")
 	}
 
-	var entryhelper helper.EntryHelper
+	var entryhelper myutils.EntryHelper
 	if err := json.Unmarshal(entries, &entryhelper); err != nil {
 		// Error 処理
+		log.Fatal("ERROR: cannot unmarshal runtime.", err)
+	} else {
+		fmt.Println("INFO: Unmarshal runtime file successfully.") // FOR DEBUG
 	}
-	fmt.Println("INFO: Unmarshal runtime file successfully.") // FOR DEBUG
+	// fmt.Println(entryhelper) // FOR DEBUG
 
 	// Update 定義
 	var updates []*v1.Update
 
 	// Entity を作成
-	for tableentryhelper := range entryhelper.TableEntries {
-		tableentry, err := helper.BuildTableEntry(tableentryhelper, p4info)
+	for _, tableentryhelper := range entryhelper.TableEntries {
+		tableentry, err := myutils.BuildTableEntry(tableentryhelper, p4info)
 		if err != nil {
 			// Error 処理
 		}
-		update, err := helper.NewUpdate("INSERT", tableentry)
+		entity := &v1.Entity{ Entity: tableentry }
+		update, err := myutils.NewUpdate("INSERT", entity)
 		if err != nil {
 			// Error 処理
 		}
+		// fmt.Println(update) // FOR DEBUG
 		updates = append(updates, update)
 	}
 
-	for multicastgroupentryhelper := range entryhelper.MulticastGroupEntries {
-		multicastgroupentry, err := helper.BuildMulticastGroupEntry(multicastgroupentryhelper, p4info)
+	for _, multicastgroupentryhelper := range entryhelper.MulticastGroupEntries {
+		multicastgroupentry, err := myutils.BuildMulticastGroupEntry(multicastgroupentryhelper)
 		if err != nil {
 			// Error 処理
 		}
-		update, err := helper.NewUpdate("INSERT", multicastgroupentry)
+		entity := &v1.Entity{ Entity: multicastgroupentry }
+		update, err := myutils.NewUpdate("INSERT", entity)
 		if err != nil {
 			// Error 処理
 		}
+		// fmt.Println(update) // FOR DEBUG
 		updates = append(updates, update)
 	}
+	// fmt.Println(updates) // FOR DEBUG
 
-		// Entity の書き込み
-		writeResponse, err := SendWriteRequest(cntlInfo, updates, "CONTINUE_ON_ERROR", client)
+	// Entity の書き込み
+	for _, up := range updates {
+		ups := make([]*v1.Update, 0)
+		ups = append(ups, up)
+		fmt.Println("Inserted Update: %v", up) // FOR DEBUG
+		_, err := SendWriteRequest(cntlInfo, ups, "CONTINUE_ON_ERROR", client)
 		if err != nil {
 			// Error 処理
+			log.Fatal("Error: WriteRequest Failed.", err)
+		} else {
+			log.Printf("INFO: Successfully Done WriteRequest.")
 		}
-		log.Printf("WriteResponse: %v", writeResponse)
+		time.Sleep(time.Second * 2)
+	}
 
-		// sleep １０秒くらい？
+	// sleep １０秒くらい？
 
-		// CounterEntry を作成
+	// CounterEntry を作成
 
-		// Counter 値を読み取るための Client を作成し，カウンタ値取得＋表示s
+	// Counter 値を読み取るための Client を作成し，カウンタ値取得＋表示
 
+	time.Sleep(time.Second * 5)
 }

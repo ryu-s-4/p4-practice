@@ -244,7 +244,8 @@ func GetParam(value interface{}, width int32) []byte {
 
 	case float64:
 		param = make([]byte, 8)
-		binary.LittleEndian.PutUint64(param, uint64(value.(float64)))
+		// binary.LittleEndian.PutUint64(param, uint64(value.(float64)))
+		binary.BigEndian.PutUint64(param, uint64(value.(float64)))
 
 	case string:
 		if width == 48 {
@@ -252,6 +253,7 @@ func GetParam(value interface{}, width int32) []byte {
 			param, err = net.ParseMAC(value.(string))
 			if err != nil {
 				// Error 処理
+				log.Fatal("ERROR: ParseMAC", err)
 			}
 		} else {
 			param = net.ParseIP(value.(string))
@@ -271,8 +273,8 @@ func GetParam(value interface{}, width int32) []byte {
 		fmt.Println("param    : ", param[:upper]) // DEBUG
 		fmt.Scan(&a)
 	*/
-
-	return param[:upper]
+	// return param[:upper] // FOR Little Endian
+	return param[(len(param) - upper):]
 }
 
 // BuildMulticastGroupEntry creates MulticastGroupEntry in the form of Entity_PacketRelicationEngineEntry.
