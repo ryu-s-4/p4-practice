@@ -76,7 +76,26 @@ BMv2 にて L2 転送を行うためにはテーブルエントリやマルチ�
 
 ```
 > sudo ip netns exec host1 ip a
-# host1 の MAC アドレスを確認
+1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: veth1.100@veth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether 5e:0b:88:ee:ff:2b brd ff:ff:ff:ff:ff:ff
+    inet 192.168.100.1/24 scope global veth1.100
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5c0b:88ff:feee:ff2b/64 scope link 
+       valid_lft forever preferred_lft forever
+3: veth1@if4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether **5e:0b:88:ee:ff:2b** brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 192.168.0.1/24 scope global veth1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5c0b:88ff:feee:ff2b/64 scope link 
+       valid_lft forever preferred_lft forever
+4: veth1.200@veth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether 5e:0b:88:ee:ff:2b brd ff:ff:ff:ff:ff:ff
+    inet 192.168.200.1/24 scope global veth1.200
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5c0b:88ff:feee:ff2b/64 scope link 
+       valid_lft forever preferred_lft forever
 
 > vi runtime.json
 # "EDIT" の部分を上記で確認した MAC アドレスに変更
@@ -143,24 +162,50 @@ BMv2 にて L2 転送を行うためにはテーブルエントリやマルチ�
     ]
 ```
 
-以上で C/P プログラムを実行する準備は完了です．後は下記のように C/P プログラムを実行し簡易 CLI に従ってカウンタ値を取得します．
+以上で C/P プログラムを実行する準備は完了です．後は BMv2 を起動しているターミナルとは別のターミナルを起動し、下記のように C/P プログラムを実行して簡易 CLI に従ってカウンタ値を取得します．
 
 ```
 > go run main.go
-
-
-
-
+2020/10/21 01:34:05 INFO: MasterArbitrationUpdate successfully done.
+2020/10/21 01:34:05 INFO: SetForwardingPipelineConfig successfully done.
+2020/10/21 01:34:05 INFO: P4Info is successfully loaded.
+2020/10/21 01:34:05 INFO: Entries (C/P configuration) are successfully loaded.
+2020/10/21 01:34:05 INFO: Write has been successfully done.
+================ Counter Example ================
+usage: input [counter name] and [index = vlan ID]
+       input "exit" if you want to quit
+=================================================
+input counter name : 
 ```
 
 今回は ```traffic_cnt``` という名前で counter を定義しています．そのため，例えば VLAN 100 のトラヒックカウンタ値を取得したい場合は下記のように入力します．なお，終了したい場合は ```exit``` を入力すると終了します．
 
 ```
 input counter name: traffic_cnt [Enter]
-input vlan ID     : 100
-# 結果が出力されます
+input vlan ID     : 100 [Enter]
+VLAN-ID:  100
+CNT NUM:  0   bytes
 ```
 
+別ターミナルでトラヒックを流すと、上記の出力結果も変化します．
+
+```
+> sudo ip netns exec host1 ping 192.168.100.5
+PING 192.168.100.5 (192.168.100.5) 56(84) bytes of data.
+64 bytes from 192.168.100.5: icmp_seq=1 ttl=64 time=1.67 ms
+64 bytes from 192.168.100.5: icmp_seq=2 ttl=64 time=5.37 ms
+64 bytes from 192.168.100.5: icmp_seq=3 ttl=64 time=2.76 ms
+64 bytes from 192.168.100.5: icmp_seq=4 ttl=64 time=1.75 ms
+64 bytes from 192.168.100.5: icmp_seq=5 ttl=64 time=1.99 ms
+...
+```
+
+```
+input counter name : traffic_cnt　[Enter]
+input vlan ID      : 100 [Enter]
+VLAN-ID:  100
+CNT NUM:  1204   bytes
+```
 # 後始末
 
 TODO

@@ -126,8 +126,8 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
 
-    const bit<32> CNT_SIZE = 1024;
-    counter(CNT_SIZE, CounterType.bytes) traffic_cnt;
+    const bit<32> CNT_SIZE = 4096;
+    counter(CNT_SIZE, CounterType.packets) traffic_cnt;
     
     action drop() {
         mark_to_drop(standard_metadata);
