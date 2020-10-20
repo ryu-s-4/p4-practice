@@ -114,7 +114,10 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 		switch match.GetMatchType().String() {
 
 		case "EXACT":
-			v := GetParam(value, match.Bitwidth)
+			v, err := GetParam(value, match.Bitwidth)
+			if err != nil {
+				return nil, err
+			}
 			fm := &v1.FieldMatch{
 				FieldId: match.Id,
 				FieldMatchType: &v1.FieldMatch_Exact_{
@@ -329,15 +332,14 @@ func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_Co
 }
 
 // GetCounterSpec_Unit gets the unit of "counter" instance.
-func GetCounterSpec_Unit(counter string, p config_v1.P4Info) config_v1.CounterSpec, error {
+func GetCounterSpec_Unit(counter string, p config_v1.P4Info) (config_v1.CounterSpec_Unit, error) {
 
-	// "counter" を探索
 	var flag bool
-	var cnt config_v1.Counter
+	var cnt *config_v1.Counter
 
 	flag = false
 	for _, c := range p.Counters {
-		if c.Preamble.Name == counter {
+		if (c.Preamble.Name == counter) || (c.Preamble.Alias == counter) {
 			cnt = c
 			flag = true
 			break
@@ -345,11 +347,10 @@ func GetCounterSpec_Unit(counter string, p config_v1.P4Info) config_v1.CounterSp
 	}
 	if flag == false {
 		err := fmt.Errorf("cannot find counter instance")
-		return nil, err
+		return config_v1.CounterSpec_UNSPECIFIED, err
 	}
 
-	// CounterSpec_Unit を return 
-	return c.Spec.Unit, nil
+	return cnt.Spec.Unit, nil
 }
 
 // NewUpdate creates new Update instance.

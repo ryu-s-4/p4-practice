@@ -56,11 +56,10 @@ func MasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamChan
 	case *v1.StreamMessageResponse_IdleTimeoutNotification:
 		/* TODO */
 		/* idletimenotf := response.GetIdleTimeoutNotification() */
-
-	default:
-		err := fmt.Errorf("unknown update response type")
-		return nil, err
 	}
+
+	/* unknown update response type is received. */
+	return nil, fmt.Errorf("unknown update response type")
 }
 
 // MyCreateConfig creates config data for SetForwardingPipelineConfig
@@ -330,6 +329,7 @@ func main() {
 		entities = append(entities, &v1.Entity{Entity: counterentry})
 
 		cnt_unit, err := myutils.GetCounterSpec_Unit(counter, p4info)
+		fmt.Println("DEBUG: cnt_unit is ", cnt_unit) // FOR DEBUG
 		if err != nil {
 			log.Fatal("ERROR: cannot get counter unit.")
 		}
