@@ -3,7 +3,6 @@ package myutils
 import (
 	"encoding/binary"
 	"fmt"
-	"log"
 	"net"
 
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
@@ -23,6 +22,7 @@ type EntryHelper struct {
 
 // ExternEntryHelper is helper for ExternEntry.
 type ExternEntryHelper struct {
+	/* TODO */
 	dammy int
 }
 
@@ -46,13 +46,13 @@ type CounterEntryHelper struct {
 	Index   int64  `json:index"`
 }
 
-// MulticastGroupEntryHelper ...
+// MulticastGroupEntryHelper is helper for MulticastGroupEntry
 type MulticastGroupEntryHelper struct {
 	Multicast_Group_ID uint32           `json:"multicast_group_id"`
 	Replicas           []*ReplicaHelper `json:"replicas"`
 }
 
-// ReplicaHelper ...
+// ReplicaHelper is helper for Replica.
 type ReplicaHelper struct {
 	Egress_port uint32 `json:"egress_port"`
 	Instance    uint32 `json:"instance"`
@@ -73,32 +73,29 @@ type DigestEntryHelper struct {
 // BuildTableEntry creates TableEntry in the form of Entity_TableEntry.
 func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableEntry, error) {
 
-	var flag bool
-
-	// Get table
-	// TODO: 事前に table 名から Table 構造体を逆引きする map 変数を作成
+	// find "Table" instance that matches h.Table (table name)
 	var table *config_v1.Table
-
+	var flag bool
+	flag = false
 	for _, t := range p.Tables {
 		if t.Preamble.Name == h.Table {
 			table = t
+			flag = true
 			break
 		}
 	}
-	if table == nil {
+	if flag == false {
 		err := fmt.Errorf("cannot find table instance")
 		return nil, err
 	}
 
-	// Get table id
-	tableid := table.Preamble.Id
-
-	// Get fieldmatch
+	// get "FieldMatch" instances that the table have.
 	var fieldmatch []*v1.FieldMatch
-
 	for key, value := range h.Match {
-		flag = false
+
+		// find "MatchField" instance that matches
 		match := &config_v1.MatchField{}
+		flag = false
 		for _, m := range table.MatchFields {
 			if m.Name == key {
 				match = m
@@ -111,6 +108,7 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 			return nil, err
 		}
 
+		// get FieldMatch instance depending on match-type.
 		switch match.GetMatchType().String() {
 
 		case "EXACT":
@@ -129,19 +127,22 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 			fieldmatch = append(fieldmatch, fm)
 
 		case "LPM":
-			var v []byte
-			v = net.ParseIP(value.([]interface{})[0].(string))
-			prefix := value.([]interface{})[1].(int32)
-			fm := &v1.FieldMatch{
-				FieldId: match.Id,
-				FieldMatchType: &v1.FieldMatch_Lpm{
-					Lpm: &v1.FieldMatch_LPM{
-						Value:     v,
-						PrefixLen: prefix,
+			/* TODO */
+			/*
+				var v []byte
+				v = net.ParseIP(value.([]interface{})[0].(string))
+				prefix := value.([]interface{})[1].(int32)
+				fm := &v1.FieldMatch{
+					FieldId: match.Id,
+					FieldMatchType: &v1.FieldMatch_Lpm{
+						Lpm: &v1.FieldMatch_LPM{
+							Value:     v,
+							PrefixLen: prefix,
+						},
 					},
-				},
-			}
-			fieldmatch = append(fieldmatch, fm)
+				}
+				fieldmatch = append(fieldmatch, fm)
+			*/
 
 		case "TERNARY":
 			/* TODO */
@@ -149,6 +150,7 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 				fm := &v1.FieldMatch{
 					FieldMatchType: &v1.FieldMatch_Ternary_{},
 				}
+				fieldmatch = append(fieldmatch, fm)
 			*/
 
 		case "RANGE":
@@ -157,6 +159,7 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 				fm := &v1.FieldMatch{
 					FieldMatchType: &v1.FieldMatch_Range_{},
 				}
+				fieldmatch = append(fieldmatch, fm)
 			*/
 
 		default:
@@ -165,31 +168,28 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 				fm := &v1.FieldMatch{
 					FieldMatchType: &v1.FieldMatch_Other{},
 				}
+				fieldmatch = append(fieldmatch, fm)
 			*/
 		}
-
 	}
 
-	// Get action
-	// TODO: 事前に action 名から Action 構造体を逆引きする map 変数を作成
+	// find "Action" instance that matches h.Action_Name.
 	var action *config_v1.Action
-
+	flag = false
 	for _, a := range p.Actions {
 		if a.Preamble.Name == h.Action_Name {
 			action = a
+			flag = true
 			break
 		}
 	}
-	if action == nil {
-		log.Fatal("Error: Not Found Action.")
+	if flag == false {
+		err := fmt.Errorf("cannot fine action")
+		return nil, err
 	}
 
-	// Get action id
-	actionid := action.Preamble.Id
-
-	// Get action parameters
+	// get "Action_Param" instances that the action have.
 	var action_params []*v1.Action_Param
-
 	for _, param := range action.Params {
 		flag = false
 		for key, value := range h.Action_Params {
@@ -213,28 +213,27 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 		}
 	}
 
-	// return TableEntry
 	entityTableEntry := &v1.Entity_TableEntry{
 		TableEntry: &v1.TableEntry{
-			TableId: tableid,
+			TableId: table.Preamble.Id,
 			Match:   fieldmatch,
 			Action: &v1.TableAction{
 				Type: &v1.TableAction_Action{
 					Action: &v1.Action{
-						ActionId: actionid,
+						ActionId: action.Preamble.Id,
 						Params:   action_params,
 					},
 				},
 			},
 		},
 	}
-
 	return entityTableEntry, nil
 }
 
 // GetParam gets action parameter in []byte
 func GetParam(value interface{}, width int32) ([]byte, error) {
 
+	// calculate the upper limit of the value in bytes.
 	var upper int
 	if width%8 == 0 {
 		upper = int(width / 8)
@@ -242,6 +241,7 @@ func GetParam(value interface{}, width int32) ([]byte, error) {
 		upper = int(width/8) + 1
 	}
 
+	// get param. depending on the type of the value.
 	var param []byte
 	switch value.(type) {
 
@@ -266,7 +266,7 @@ func GetParam(value interface{}, width int32) ([]byte, error) {
 		}
 
 	default:
-		param = make([]byte, upper)
+		/* TODO */
 	}
 
 	return param[(len(param) - upper):], nil
@@ -275,36 +275,31 @@ func GetParam(value interface{}, width int32) ([]byte, error) {
 // BuildMulticastGroupEntry creates MulticastGroupEntry in the form of Entity_PacketRelicationEngineEntry.
 func BuildMulticastGroupEntry(h *MulticastGroupEntryHelper) (*v1.Entity_PacketReplicationEngineEntry, error) {
 
-	// Get multicast group id
-	groupid := h.Multicast_Group_ID
-
-	// Get Replicas
+	// create "Replica" instances from the helper.
 	replicas := make([]*v1.Replica, 0)
 	for _, r := range h.Replicas {
 		replicas = append(replicas, &v1.Replica{EgressPort: r.Egress_port, Instance: r.Instance})
 	}
 
-	// Return Entity_PacketReplicationEngineEntry
 	entity_PacketReplicationEngineEntry := &v1.Entity_PacketReplicationEngineEntry{
 		PacketReplicationEngineEntry: &v1.PacketReplicationEngineEntry{
 			Type: &v1.PacketReplicationEngineEntry_MulticastGroupEntry{
 				MulticastGroupEntry: &v1.MulticastGroupEntry{
-					MulticastGroupId: groupid,
+					MulticastGroupId: h.Multicast_Group_ID,
 					Replicas:         replicas,
 				},
 			},
 		},
 	}
-
 	return entity_PacketReplicationEngineEntry, nil
 }
 
+// BuildCounterEntry builds
 func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_CounterEntry, error) {
 
-	// get counter
+	// find "Counter" instance that matches h.Counter (counter name).
 	var flag bool
 	var counter *config_v1.Counter
-
 	flag = false
 	for _, c := range p.Counters {
 		if (c.Preamble.Name == h.Counter) || (c.Preamble.Alias == h.Counter) {
@@ -318,7 +313,6 @@ func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_Co
 		return nil, err
 	}
 
-	// return Counter
 	entity_counterentry := &v1.Entity_CounterEntry{
 		CounterEntry: &v1.CounterEntry{
 			CounterId: counter.Preamble.Id,
@@ -327,7 +321,6 @@ func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_Co
 			},
 		},
 	}
-
 	return entity_counterentry, nil
 }
 
@@ -336,7 +329,6 @@ func GetCounterSpec_Unit(counter string, p config_v1.P4Info) (config_v1.CounterS
 
 	var flag bool
 	var cnt *config_v1.Counter
-
 	flag = false
 	for _, c := range p.Counters {
 		if (c.Preamble.Name == counter) || (c.Preamble.Alias == counter) {
@@ -353,7 +345,7 @@ func GetCounterSpec_Unit(counter string, p config_v1.P4Info) (config_v1.CounterS
 	return cnt.Spec.Unit, nil
 }
 
-// NewUpdate creates new Update instance.
+// NewUpdate creates new "Update" instance.
 func NewUpdate(updateType string, entity *v1.Entity) (*v1.Update, error) {
 
 	switch updateType {

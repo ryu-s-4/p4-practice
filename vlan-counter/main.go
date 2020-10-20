@@ -176,7 +176,6 @@ func CreateReadClient(
 
 	readclient, err := client.Read(context.TODO(), &readRequest)
 	if err != nil {
-		// Error 処理
 		return nil, err
 	}
 
@@ -237,67 +236,64 @@ func main() {
 	}
 	log.Printf("INFO: SetForwardingPipelineConfig successfully done.")
 
-	/* P4Info 読込み */
+	/* P4Info および各 Entry 情報を読込み */
 	p4infoText, err := ioutil.ReadFile(cntlInfo.p4infoPath)
 	if err != nil {
 		log.Fatal("ERROR: failed to read p4info file.")
 	}
-
 	var p4info config_v1.P4Info
 	if err := proto.UnmarshalText(string(p4infoText), &p4info); err != nil {
 		log.Fatal("ERROR: cannot unmarshal p4info.txt.", err)
 	}
+	log.Printf("INFO: P4Info is successfully loaded.")
 
-	// myutils を使って table entry を読み込み
 	entries, err := ioutil.ReadFile(cntlInfo.runconfPath)
 	if err != nil {
 		log.Fatal("ERROR: cannot read file (runtime).")
 	}
-
 	var entryhelper myutils.EntryHelper
 	if err := json.Unmarshal(entries, &entryhelper); err != nil {
 		log.Fatal("ERROR: cannot unmarshal runtime.", err)
 	}
+	log.Printf("INFO: Entries (C/P configuration) are successfully loaded.")
 
-	// Update 定義
+	/* 更新後の Entity を含む Update を作成し，Write RPC で Entity を更新． */
 	var updates []*v1.Update
 
-	/* TableEntry を生成 */
+	/* 更新後の Entity 生成（TableEntry) */
 	for _, tableentryhelper := range entryhelper.TableEntries {
 		tableentry, err := myutils.BuildTableEntry(tableentryhelper, p4info)
 		if err != nil {
-			// Error 処理
+			log.Fatal("ERROR: cannot build table entry.", err)
 		}
 		entity := &v1.Entity{Entity: tableentry}
 		update, err := myutils.NewUpdate("INSERT", entity)
 		if err != nil {
-			// Error 処理
+			log.Fatal("ERROR: cannot create new update.", err)
 		}
-		// fmt.Println(update) // FOR DEBUG
 		updates = append(updates, update)
 	}
 
-	/* PacketReplicationEngineEntry を生成 */
+	/* 更新後の ENtity 生成（PacketReplicationEngineEntry) */
 	for _, multicastgroupentryhelper := range entryhelper.MulticastGroupEntries {
 		multicastgroupentry, err := myutils.BuildMulticastGroupEntry(multicastgroupentryhelper)
 		if err != nil {
-			// Error 処理
+			log.Fatal("ERROR: cannot build multicast group entry.", err)
 		}
 		entity := &v1.Entity{Entity: multicastgroupentry}
 		update, err := myutils.NewUpdate("INSERT", entity)
 		if err != nil {
-			// Error 処理
+			log.Fatal("ERROR: cannot create new update.", err)
 		}
-		// fmt.Println(update) // FOR DEBUG
 		updates = append(updates, update)
 	}
 
-	/* 各 Entites を Write */
+	/* Write RPC で Entity を更新 */
 	_, err = SendWriteRequest(cntlInfo, updates, "CONTINUE_ON_ERROR", client)
 	if err != nil {
 		log.Fatal("ERROR: failed to write entities. ", err)
 	}
-	log.Printf("INFO: Write entities successfully done.")
+	log.Printf("INFO: Write has been successfully done.")
 
 	/* VLAN 毎のトラヒックカウンタ値を取得 */
 	var counter string
@@ -329,7 +325,6 @@ func main() {
 		entities = append(entities, &v1.Entity{Entity: counterentry})
 
 		cnt_unit, err := myutils.GetCounterSpec_Unit(counter, p4info)
-		fmt.Println("DEBUG: cnt_unit is ", cnt_unit) // FOR DEBUG
 		if err != nil {
 			log.Fatal("ERROR: cannot get counter unit.")
 		}
