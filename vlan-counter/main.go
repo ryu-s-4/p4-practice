@@ -306,7 +306,7 @@ func main() {
 			log.Print("INFO: Exit explicitly. Connection is going to down.")
 			break
 		}
-		fmt.Print("input counter name : ")
+		fmt.Print("input vlan ID      : ")
 		fmt.Scan(&index)
 
 		counterentryhelper := &myutils.CounterEntryHelper{
