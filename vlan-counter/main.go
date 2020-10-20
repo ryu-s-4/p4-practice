@@ -65,7 +65,6 @@ func MasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamChan
 // MyCreateConfig creates config data for SetForwardingPipelineConfig
 func MyCreateConfig(p4infoPath string, devconfPath string) (*v1.ForwardingPipelineConfig, error) {
 
-	// create P4Info
 	p4info := config_v1.P4Info{}
 	p4infoBytes, err := ioutil.ReadFile(p4infoPath)
 	if err != nil {
@@ -73,14 +72,12 @@ func MyCreateConfig(p4infoPath string, devconfPath string) (*v1.ForwardingPipeli
 	}
 	proto.UnmarshalText(string(p4infoBytes), &p4info)
 
-	// create Device Config
 	var devconf []byte
 	devconf, err = ioutil.ReadFile(devconfPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// create ForwardingPipelineConfig
 	forwardingpipelineconfig := v1.ForwardingPipelineConfig{
 		P4Info:         &p4info,
 		P4DeviceConfig: devconf}
