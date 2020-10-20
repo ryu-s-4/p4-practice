@@ -25,14 +25,14 @@
 
 # 動作確認
 
-本 repository を clone した後，下記のように P4 プログラムをコンパイルします．
+本 repository を clone した後，下記のように P4 プログラムをコンパイルします．コンパイル後，カレントディレクトリに ```p4info.txt``` と ```switching.json``` が生成されていることを確認してください．
 
 ```
 > cd p4-practice/vlan-counter
 > p4c --std p4_16 -b bmv2 --p4runtime-files p4info.txt switching.p4
+> ls
+p4info.txt  switching.json  ...
 ```
-
-カレントディレクトリに ```p4info.txt``` と ```switching.json``` が生成されていることを確認してください．
 
 続いて，動作環境用の環境を構築します．今回は下記のような構成とします．
 
@@ -51,4 +51,12 @@ VLAN 200  : 192.168.200.0/24                               .3|
                                                           |host7|
                                                            -----
 ```
+
+上記環境を構築するスクリプトを同梱していますので，下記のようにシェルスクリプトを実行し環境を構築します．
+
+```
+> ./env_setup.sh
+> ./vlan_setup.sh
+```
+
 
