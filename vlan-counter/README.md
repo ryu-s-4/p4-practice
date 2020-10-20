@@ -70,7 +70,7 @@ VLAN 200  : 192.168.200.0/24                               .3|
 下記のように BMv2 を起動すれば環境構築は完了です．
 
 ```
-> sudo simple_switch_grpc --no-p4 -i 0@veth0 -i 1@veth2 -i 2@veth4 -i 3@veth6 --log-console -L trace --grpc-server-addr 0.0.0.0:50051
+> sudo simple_switch_grpc --no-p4 -i 0@veth0 -i 1@veth2 -i 2@veth4 -i 3@veth6 --log-console -L trace -- --grpc-server-addr 0.0.0.0:50051
 ```
 
 BMv2 にて L2 転送を行うためにはテーブルエントリやマルチキャストグループの登録が必要になります．今回はエントリー登録用の json ファイル（```runtime.json```）を C/P プログラムが読み込んで各種エントリーの登録を行う実装としています．各 host の MAC アドレスを確認しつつ，エントリー登録用の ```runtime.json``` を下記のように編集します（下記には host1 のデフォルト VLAN, VLAN 100 用の MAC テーブルエントリの設定方法を記載しています）．
