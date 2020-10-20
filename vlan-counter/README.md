@@ -85,7 +85,7 @@ BMv2 にて L2 転送を行うためにはテーブルエントリやマルチ�
     inet6 fe80::5c0b:88ff:feee:ff2b/64 scope link 
        valid_lft forever preferred_lft forever
 3: veth1@if4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
-    link/ether **5e:0b:88:ee:ff:2b** brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    link/ether 5e:0b:88:ee:ff:2b brd ff:ff:ff:ff:ff:ff link-netnsid 0
     inet 192.168.0.1/24 scope global veth1
        valid_lft forever preferred_lft forever
     inet6 fe80::5c0b:88ff:feee:ff2b/64 scope link 
@@ -98,7 +98,7 @@ BMv2 にて L2 転送を行うためにはテーブルエントリやマルチ�
        valid_lft forever preferred_lft forever
 
 > vi runtime.json
-# "EDIT" の部分を上記で確認した MAC アドレスに変更
+# "hdr.ethernet.dstAddr" の部分を上記で確認した MAC アドレスに変更
 
 ====== runtime.json =====
 {
@@ -109,7 +109,7 @@ BMv2 にて L2 転送を行うためにはテーブルエントリやマルチ�
         {
             "table": "MyIngress.mac_exact",
             "match": {
-                "hdr.ethernet.dstAddr": "EDIT"
+                "hdr.ethernet.dstAddr": "host1's MAC address"
             },
             "action_name": "MyIngress.switching",
             "action_params": {
@@ -123,7 +123,7 @@ BMv2 にて L2 転送を行うためにはテーブルエントリやマルチ�
             "table": "MyIngress.mac_vlan_exact",
             "match": {    
                 "hdr.vlan.id": 100,    
-                "hdr.ethernet.dstAddr": "EDIT"    
+                "hdr.ethernet.dstAddr": "host1's MAC address"    
             },    
             "action_name": "MyIngress.switching_vlan",    
             "action_params": {    
@@ -187,7 +187,7 @@ VLAN-ID:  100
 CNT NUM:  0   bytes
 ```
 
-別ターミナルでトラヒックを流すと、上記の出力結果も変化します．
+別ターミナルでトラヒックを流すと上記の出力結果も変化します．
 
 ```
 > sudo ip netns exec host1 ping 192.168.100.5
@@ -199,13 +199,13 @@ PING 192.168.100.5 (192.168.100.5) 56(84) bytes of data.
 64 bytes from 192.168.100.5: icmp_seq=5 ttl=64 time=1.99 ms
 ...
 ```
-
 ```
 input counter name : traffic_cnt　[Enter]
 input vlan ID      : 100 [Enter]
 VLAN-ID:  100
 CNT NUM:  1204   bytes
 ```
+
 # 後始末
 
 TODO
