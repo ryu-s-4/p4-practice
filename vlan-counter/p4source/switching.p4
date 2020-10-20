@@ -109,7 +109,6 @@ parser MyParser(packet_in packet,
     }
 }
 
-
 /*************************************************************************
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
@@ -129,60 +128,24 @@ control MyIngress(inout headers hdr,
 
     const bit<32> CNT_SIZE = 1024;
     counter(CNT_SIZE, CounterType.bytes) traffic_cnt;
-
-    /* mac_exact table と紐付けることで
-       宛先 MAC Addr.（ table の key）毎に
-       入力レートを計測 = レート制御が可能 */
-    direct_meter<bit<2>>(MeterType.packets) dm;
-
-    action drop() {
-        // mark_to_drop is NOT implemented on BMv2.
-        // mark_to_drop(standard_metadata);
-    }
     
+    action drop() {
+        mark_to_drop(standard_metadata);
+    }
+
     action broadcast() {
-        /* multicast group を c-plane で定義し、
-           対応する group の id を mcast_grp に入力.
-           詳細は下記 URL の "after-ingress-pseud code" を参照. 
-           参考: https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md */
-
-        /* 現状の BMv2 では CLI 経由での multicast group の登録に対応していない可能性あり.
-           tutorial は runtime.json に直書きしているので、最悪そうする. */
-
-        /* mcast_grp == 1 は全てのポートが属する broadcast domain として default 登録（とする） */
         standard_metadata.mcast_grp = 1;
     }
 
     action broadcast_vlan(bit<16> grp_id) {
-        /* grp_id <- vlan_id として broadcast domain を C/P より登録.
-           ただし、stateful な実装は気持ち悪いため mcast_grp は別途 action-param として登録 */
         standard_metadata.mcast_grp = grp_id;
-
-        // meta.cnt_idx = (bit<32>) hdr.vlan.id;
-        traffic_cnt.count(meta.cnt_idx);
     }
 
     action switching(egressSpec_t port) {
-        /* 入力レートの判定値を取得 */
-        dm.read(meta.color);
-
-        /* color が RED or YELLOW の場合はドロップ
-        　 　RED     : peak rate を超過した場合
-        　　 YELLOW :  committed rate を超過した場合 */
-        if (meta.color == V1MODEL_METER_COLOR_YELLOW) {
-            if (meta.color == V1MODEL_METER_COLOR_RED) {
-                drop();
-            } else {
-                drop();
-            }
-        } else {
-        /* 出力ポートを設定 */
         standard_metadata.egress_spec = port;
-        }
     }
 
     action switching_vlan(egressSpec_t port) {
-        /* 出力ポートを設定 */
         standard_metadata.egress_spec = port;
 
         /* 転送したトラヒックをカウント */
@@ -198,11 +161,9 @@ control MyIngress(inout headers hdr,
             switching;
             broadcast;
             drop;
-            NoAction();
         }
         size = 1024;
         default_action = drop;
-        meters = dm;
     }
 
     table mac_vlan_exact {
@@ -214,7 +175,6 @@ control MyIngress(inout headers hdr,
             switching_vlan;
             broadcast_vlan;
             drop;
-            NoAction();
         }
         size = 1024;
         default_action = drop;
@@ -224,11 +184,11 @@ control MyIngress(inout headers hdr,
         if (hdr.vlan.isValid()) {
             meta.cnt_idx = (bit<32>) hdr.vlan.id;
             if (!mac_vlan_exact.apply().hit) {
-                /* MAC 学習 */
+                /* TODO: MAC learning */
             }
         } else {
             if (!mac_exact.apply().hit) {
-                /* MAC 学習 */
+                /* TODO: MAC learning */
             }
         }
     }
@@ -248,7 +208,6 @@ control MyEgress(inout headers hdr,
 
     apply {  
         if (standard_metadata.egress_port == standard_metadata.ingress_port) {
-            /* mcast_grp = 1 には全てのポートが参加しているため、入力ポートへの送信は防ぐ */
             drop();
         }
     }
@@ -277,7 +236,6 @@ control MyComputeChecksum(inout headers hdr, inout metadata meta) {
             HashAlgorithm.csum16);
     }
 }
-
 
 /*************************************************************************
 ***********************  D E P A R S E R  *******************************
