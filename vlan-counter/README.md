@@ -1,7 +1,7 @@
 
 # 概要と参考記事
 
-簡易 L2 スイッチに VLAN 毎のトラヒックカウンタを実装し，コントロールプレーンからカウンタ値を取得します．[p4-guide ](https://github.com/jafingerhut/p4-guide)等を参照し，P4 開発環境が構築済みであることを前提とします．動作確認手順は大きく下記の流れとなります．
+簡易 L2 スイッチに VLAN 毎のトラヒックカウンタを実装し，コントロールプレーンからカウンタ値を取得します．[p4-guide ](https://github.com/jafingerhut/p4-guide)等を参照し P4 開発環境が構築済みであることを前提とします．動作確認手順は大きく下記の流れとなります．
 
 1. P4 プログラムのコンパイル
 2. 動作確認環境の構築
@@ -54,25 +54,25 @@ VLAN 200  : 192.168.200.0/24                               .3|
                                                            -----
 ```
 
-まず，[BMv2 の公式 repository が提供するシェルスクリプト](https://github.com/p4lang/behavioral-model/blob/master/tools/veth_setup.sh)でインターフェース設定を下記のように行います．なお ```behavioral-model``` ディレクトリはインストール時のディレクトリに依存するため注意してください（[p4-guide ](https://github.com/jafingerhut/p4-guide)で環境構築を行った場合は P4-guide を clone したディレクトリと同じディレクトリに clone されているかと思います）．
+まず，[BMv2 の公式 repository が提供するシェルスクリプト](https://github.com/p4lang/behavioral-model/blob/master/tools/veth_setup.sh)でインターフェース設定を下記のように行います．なお ```behavioral-model``` ディレクトリの場所はインストール時のディレクトリに依存するため注意してください（[p4-guide ](https://github.com/jafingerhut/p4-guide)で環境構築を行った場合は P4-guide を clone したディレクトリと同じディレクトリに clone されているかと思います）．
 
 ```
 > sudo behavioral-model/tools/veth_setup.sh
 ```
 
-続いて下記のようにシェルスクリプトを実行し BMv2 以外の部分を構築します．
+インターフェース設定が終わったら下記のようにシェルスクリプトを実行し BMv2 以外の部分を構築します．
 
 ```
 > sudo ./setup_env.sh
 ```
 
-最後に下記のように BMv2 を起動すれば環境構築は完了です．
+下記のように BMv2 を起動すれば環境構築は完了です．
 
 ```
 > sudo simple_switch_grpc --no-p4 -i 0@veth0 -i 1@veth2 -i 2@veth4 -i 3@veth6 --log-console -L trace --grpc-server-addr 0.0.0.0:50051
 ```
 
-BMv2 にて L2 転送を行うためにはテーブルエントリやマルチキャストグループの登録が必要になります．今回はエントリー登録用の json ファイルを C/P プログラムが読み込んで各種エントリーの登録を行う実装としています．各 host の MAC アドレスを確認しつつ，エントリー登録用の ```runtime.json``` を下記のように編集します（下記には host1 のデフォルト VLAN, VLAN 100 用の MAC テーブルエントリの設定方法を記載しています）．
+BMv2 にて L2 転送を行うためにはテーブルエントリやマルチキャストグループの登録が必要になります．今回はエントリー登録用の json ファイル（```runtime.json```）を C/P プログラムが読み込んで各種エントリーの登録を行う実装としています．各 host の MAC アドレスを確認しつつ，エントリー登録用の ```runtime.json``` を下記のように編集します（下記には host1 のデフォルト VLAN, VLAN 100 用の MAC テーブルエントリの設定方法を記載しています）．
 
 ```
 > sudo ip netns exec host1 ip a
