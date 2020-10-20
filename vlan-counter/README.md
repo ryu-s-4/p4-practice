@@ -60,9 +60,10 @@ VLAN 200  : 192.168.200.0/24                               .3|
 > sudo behavioral-model/tools/veth_setup.sh
 ```
 
-インターフェース設定が終わったら下記のようにシェルスクリプトを実行し BMv2 以外の部分を構築します．
+インターフェース設定が終わったら ```p4-practice/vlan-counter``` ディレクトリに戻り，下記のようにシェルスクリプトを実行し BMv2 以外の部分を構築します．
 
 ```
+> cd p4-practice/vlan-counter
 > sudo ./setup_env.sh
 ```
 
