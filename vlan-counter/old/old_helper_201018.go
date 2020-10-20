@@ -191,13 +191,9 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 		flag = false
 		for key, value := range h.Action_Params {
 			if key == param.Name {
-				p, err := GetParam(value, param.Bitwidth)
-				if err != nil {
-					return nil, err
-				}
 				action_param := &v1.Action_Param{
 					ParamId: param.Id,
-					Value:   p,
+					Value:   GetParam(value, param.Bitwidth), // TODO: MAC アドレス等の場合に net.ParseMAC 必要
 				}
 				action_params = append(action_params, action_param)
 				flag = true
@@ -266,7 +262,7 @@ func GetParam(value interface{}, width int32) ([]byte, error) {
 		param = make([]byte, upper)
 	}
 
-	return param[(len(param) - upper):], nil
+	return param[(len(param) - upper):]
 }
 
 // BuildMulticastGroupEntry creates MulticastGroupEntry in the form of Entity_PacketRelicationEngineEntry.
@@ -328,30 +324,6 @@ func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_Co
 	return entity_counterentry, nil
 }
 
-// GetCounterSpec_Unit gets the unit of "counter" instance.
-func GetCounterSpec_Unit(counter string, p config_v1.P4Info) config_v1.CounterSpec, error {
-
-	// "counter" を探索
-	var flag bool
-	var cnt config_v1.Counter
-
-	flag = false
-	for _, c := range p.Counters {
-		if c.Preamble.Name == counter {
-			cnt = c
-			flag = true
-			break
-		}
-	}
-	if flag == false {
-		err := fmt.Errorf("cannot find counter instance")
-		return nil, err
-	}
-
-	// CounterSpec_Unit を return 
-	return c.Spec.Unit, nil
-}
-
 // NewUpdate creates new Update instance.
 func NewUpdate(updateType string, entity *v1.Entity) (*v1.Update, error) {
 
@@ -381,3 +353,66 @@ func NewUpdate(updateType string, entity *v1.Entity) (*v1.Update, error) {
 		return &update, nil
 	}
 }
+
+/*
+func main() {
+
+	runtime_path := "../runtime.json"
+	p4info_path := "../p4info.txt"
+
+	runtime, err := ioutil.ReadFile(runtime_path)
+	if err != nil {
+		// ReadFile Error
+		log.Fatal("Error")
+	}
+
+	p4info_row, err := ioutil.ReadFile(p4info_path)
+	if err != nil {
+		// ReadFile Error
+		log.Fatal("Error")
+	}
+
+	var entryhelper EntryHelper
+	if err := json.Unmarshal(runtime, &entryhelper); err != nil {
+		// Error 処理
+		log.Fatal("Error")
+	}
+
+	p4info := config_v1.P4Info{}
+	if err := proto.UnmarshalText(string(p4info_row), &p4info); err != nil {
+		// Error 処理
+		log.Fatal("Error")
+	}
+
+	var tableentries []*v1.Entity_TableEntry
+	for _, tableenthelper := range entryhelper.TableEntries {
+		tableentry, err := BuildTableEntry(tableenthelper, p4info)
+		if err != nil {
+			// Error 処理
+			log.Fatal("Error Build.")
+		}
+		tableentries = append(tableentries, tableentry)
+		fmt.Println(tableentry) // For DEBUG
+	}
+
+	var multicastgroupenties []*v1.Entity_PacketReplicationEngineEntry
+	for _, multicastgroupenthelper := range entryhelper.MulticastGroupEntries {
+		multicastgroupentry, err := BuildMulticastGroupEntry(multicastgroupenthelper)
+		if err != nil {
+			// Error 処理
+		}
+		multicastgroupenties = append(multicastgroupenties, multicastgroupentry)
+		fmt.Println(multicastgroupentry) // For DEBUG
+	}
+
+	var counterentries []*v1.Entity_CounterEntry
+	for _, counterentryhelper := range entryhelper.CounterEntries {
+		counterentry, err := BuildCounterEntry(counterentryhelper, p4info)
+		if err != nil {
+			// Error 処理
+		}
+		counterentries = append(counterentries, counterentry)
+		fmt.Println(counterentry) // For DEBUG
+	}
+}
+*/

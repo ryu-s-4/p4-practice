@@ -1,7 +1,4 @@
-{
-  "target": "bmv2",
-  "p4info": "build/multicast.p4.p4info.txt",
-  "bmv2_json": "build/multicast.json",  
+{ 
   "table_entries": [ 
     {
       "table": "MyIngress.mac_exact",
