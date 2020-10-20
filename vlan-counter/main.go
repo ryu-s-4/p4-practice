@@ -236,7 +236,7 @@ func main() {
 	/* P4Info および各 Entry 情報を読込み */
 	p4infoText, err := ioutil.ReadFile(cntlInfo.p4infoPath)
 	if err != nil {
-		log.Fatal("ERROR: failed to read p4info file.")
+		log.Fatal("ERROR: failed to read p4info file.", err)
 	}
 	var p4info config_v1.P4Info
 	if err := proto.UnmarshalText(string(p4infoText), &p4info); err != nil {
@@ -246,7 +246,7 @@ func main() {
 
 	entries, err := ioutil.ReadFile(cntlInfo.runconfPath)
 	if err != nil {
-		log.Fatal("ERROR: cannot read file (runtime).")
+		log.Fatal("ERROR: cannot read file (runtime).", err)
 	}
 	var entryhelper myutils.EntryHelper
 	if err := json.Unmarshal(entries, &entryhelper); err != nil {

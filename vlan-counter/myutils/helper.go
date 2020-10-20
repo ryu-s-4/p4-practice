@@ -143,6 +143,8 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 				}
 				fieldmatch = append(fieldmatch, fm)
 			*/
+			err := fmt.Errorf("not implimented yet...")
+			return nil, err
 
 		case "TERNARY":
 			/* TODO */
@@ -152,6 +154,8 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 				}
 				fieldmatch = append(fieldmatch, fm)
 			*/
+			err := fmt.Errorf("not implimented yet...")
+			return nil, err
 
 		case "RANGE":
 			/* TODO */
@@ -161,6 +165,8 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 				}
 				fieldmatch = append(fieldmatch, fm)
 			*/
+			err := fmt.Errorf("not implimented yet...")
+			return nil, err
 
 		default:
 			/* TODO */
@@ -170,6 +176,8 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 				}
 				fieldmatch = append(fieldmatch, fm)
 			*/
+			err := fmt.Errorf("not implimented yet...")
+			return nil, err
 		}
 	}
 
@@ -267,6 +275,8 @@ func GetParam(value interface{}, width int32) ([]byte, error) {
 
 	default:
 		/* TODO */
+		err := fmt.Errorf("not implimented yet...")
+		return nil, err
 	}
 
 	return param[(len(param) - upper):], nil
