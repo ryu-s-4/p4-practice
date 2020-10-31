@@ -39,7 +39,7 @@ type EntryHelper struct {
 // ExternEntryHelper is helper for ExternEntry.
 type ExternEntryHelper struct {
 	/* TODO */
-	dammy int
+	dummy int
 }
 
 // TableEntryHelper is helper for TableEntry.
@@ -53,7 +53,7 @@ type TableEntryHelper struct {
 // MeterEntryHelper is helper for MeterEntry.
 type MeterEntryHelper struct {
 	/* TODO */
-	dammy int
+	dummy int
 }
 
 // CounterEntryHelper is helper for CounterEntry.
@@ -77,13 +77,13 @@ type ReplicaHelper struct {
 // RegisterEntryHepler is hepler for RegisterEntry.
 type RegisterEntryHelper struct {
 	/* TODO */
-	dammy int
+	dummy int
 }
 
 // DigestEntryHelper is helper for DigestEntry.
 type DigestEntryHelper struct {
 	/* TODO */
-	dammy int
+	dummy int
 }
 
 // BuildTableEntry creates TableEntry in the form of Entity_TableEntry.
