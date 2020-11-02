@@ -203,8 +203,8 @@ control MyIngress(inout headers hdr,
         */
     }
 
-    action limit_traffic(bit<16> teid) {
-        /* TEID 毎の meter を確認し超過している場合は速度制限 */
+    action limit_traffic() {
+        /* hit したエントリの (direct) meter を確認し超過している場合は速度制限 */
         limitter.read(meta.color);
         if (meta.color == V1MODEL_METER_COLOR_RED) {
             drop();

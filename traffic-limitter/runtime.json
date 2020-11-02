@@ -1,0 +1,88 @@
+{ 
+  "table_entries": [ 
+    {
+      "table": "MyIngress.mac_exact",
+      "match": {
+        "hdr.ethernet.dstAddr": "ff:ff:ff:ff:ff:ff"
+      },
+      "action_name": "MyIngress.broadcast"
+    },  
+    {
+      "table": "MyIngress.mac_exact",
+      "match": {
+        "hdr.ethernet.dstAddr": "host1's MAC address"
+      },
+      "action_name": "MyIngress.switching",
+      "action_params": {
+        "port": 0
+      }
+    },
+    {
+      "table": "MyIngress.mac_exact",
+      "match": {
+        "hdr.ethernet.dstAddr": "host3's MAC address"
+      },
+      "action_name": "MyIngress.switching",
+      "action_params": {
+        "port": 1
+      }
+    },
+    {
+      "table": "MyIngress.mac_exact",
+      "match": {
+        "hdr.ethernet.dstAddr": "host5's MAC address"
+      },
+      "action_name": "MyIngress.switching",
+      "action_params": {
+        "port": 2
+      }
+    },
+    {
+      "table": "MyIngress.mac_exact",
+      "match": {
+        "hdr.ethernet.dstAddr": "host7's MAC address"
+      },
+      "action_name": "MyIngress.switching",
+      "action_params": {
+        "port": 3
+      }
+    } ,
+    {
+      "table": "MyIngress.urr_exact",
+      "match": {
+        "hdr.gtp_u.teid": <TEID>,
+      },
+      "action_name": "MyIngress.limit_traffic"
+    },
+    {
+      "table": "MyIngress.urr_exact",
+      "match": {
+        "hdr.gtp_u.teid": <TEID>,
+      },
+      "action_name": "MyIngress.limit_traffic"
+    }
+  ],    
+  "multicast_group_entries" : [   
+    {   
+      "multicast_group_id" : 1,    
+      "replicas" : [    
+        {    
+          "egress_port" : 0,
+          "instance" : 1    
+        },    
+        { 
+          "egress_port" : 1, 
+          "instance" : 1    
+        },    
+        {
+          "egress_port" : 2,
+          "instance" : 1    
+        },    
+        {
+          "egress_port" : 3,
+          "instance" : 1   
+        }    
+      ]    
+    }  
+  ]  
+}

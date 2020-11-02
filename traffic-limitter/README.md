@@ -17,6 +17,8 @@ GTP を使う．TEID 毎にトラヒックカウント．P4 プログラムは i
       - teidCh に先に渡す？
   - トラヒック量を超過した TEID に対応する URR エントリ（＋ direct meter entry）を登録
     - rptCh（トラヒック量を超過した TEID を counter 値を監視する gorouine からエントリ登録をする goroutine に通知する channel） 
+  - runtime は table 毎に分けて，TEID と紐づく table entry を探すときに楽にする．
+    - ちゃんとやるときは table 毎にデータベースでエントリ管理し，データベースから json 取得 / json 更新をする．
 - 解説記事
   - 実装内容の概要
     - meter を使った流量制限機能（BMv2 の meter 実装の都合上，動作確認はパケットサイズの制限を使って確認）
