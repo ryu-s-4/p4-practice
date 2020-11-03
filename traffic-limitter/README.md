@@ -12,13 +12,10 @@ GTP を使う．TEID 毎にトラヒックカウント．P4 プログラムは i
   - direct meter entry 制御
     - table entry の逆引き（direct meter が table entry に紐つくため）
   - 定期的に counter 値を監視するプログラム作成（goroutine）
-    - teidch（監視対象の TEID を goroutine に渡す channel）
-    - cmdCh（監視対象の TEID の登録(ADD)・削除(DEL)を goroutine に渡す channel）
-      - teidCh に先に渡す？
-  - トラヒック量を超過した TEID に対応する URR エントリ（＋ direct meter entry）を登録
-    - rptCh（トラヒック量を超過した TEID を counter 値を監視する gorouine からエントリ登録をする goroutine に通知する channel） 
+  - トラヒック量を超過した TEID に対応する direct meter entry を登録
   - runtime は table 毎に分けて，TEID と紐づく table entry を探すときに楽にする．
     - ちゃんとやるときは table 毎にデータベースでエントリ管理し，データベースから json 取得 / json 更新をする．
+  - io.go や helper.go の各関数を具備した構造体変数 ControlPlaneClient を作り，MonitorTraffic にはその構造体変数のポインタを引数として渡す（ControlPlaneClient への write は原則行わない）
 - 解説記事
   - 実装内容の概要
     - meter を使った流量制限機能（BMv2 の meter 実装の都合上，動作確認はパケットサイズの制限を使って確認）

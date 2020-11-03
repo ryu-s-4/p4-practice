@@ -25,6 +25,12 @@ import (
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 )
 
+// Helper ...
+type Helper struct {
+	P4Info  *config_v1.P4Info
+	Entries *EntryHelper
+}
+
 // EntryHelper is helper for Entry
 type EntryHelper struct {
 	ExternEntries         []*ExternEntryHelper         `json:"extern_entries"`

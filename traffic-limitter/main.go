@@ -20,10 +20,6 @@ import (
 regCh chan uint16
 delCh chan uint16
 
-// Controll channel for report TEID that exceeds the given amount.
-rptCh chan uint16
-logCh chan uint16
-
 func main() {
 
 	/* 各種情報を設定 */
@@ -93,10 +89,8 @@ func main() {
 	// Traffic Monitor を行う goroutine を起動
 	regCh = make(chan uint16, 10)
 	delCh = make(chan uint16, 10)
-	rptCh = make(chan uint16, 10)
 
 	go MonitorTraffic() 
-	go ControlMeter()
 
 	// 監視対象 TEID を登録/削除
 	/* TODO: 簡易 CLI で TEID の登録・削除 */
@@ -130,6 +124,14 @@ func main() {
 	os.Exit(0)
 }
 
+limit := 1000000 /* トラヒック量の制限値 */
+mconf := &v1.MeterConfig{
+	Cir: 10000,  // 10KBps = 80kbps
+	Cburst: 500, // 500 Bytes
+	Pir: 5000, // 5KBps = 40kbps
+	Pburst 250, // 250 Bytes
+}
+
 func MonitorTraffic() {
 
 	var teid []uint16
@@ -160,27 +162,71 @@ func MonitorTraffic() {
 		}
 	}
 
-	limit := 1000000 /* トラヒック量の制限値 */
+	key := "hdr.gtu_u.teid" /* TEID を逆引きするための key 値 */
+	unit := /* Direct Counter の測定単位を事前に取得．BYTES 単位のみ許容する．ERROR 処理 */
+	switch unit {
+	case config_v1.CounterSpec_BYTES:
+		/* OK */
+	default:
+		log.Fatal("ERROR: Counter Unit is only allowed to be \"Bytes\".")
+	}
+
 	for {
 		for _, id := range teid {
-			// TODO: TEID 毎に Counter 値を取得し，制限量と比較．
-			
-			/* TEID から table entry 生成
-			   helper から逆引き．もっとちゃんとしようとするとデータベースからエントリの json ファイル引っ張ってきて，helper 変数に落とし込んで build entry */
-			var entry *v1.TableEntry
+
+			/* TEID から table entry 生成．helper から逆引き．もっとちゃんとしようとするとデータベースからエントリの json ファイル引っ張ってきて，helper 変数に落とし込んで build entry */
+			var entry *v1.TableEntry = nil
 			for _, h :=  range entryhelper.TableEntries {
-				// TEID が一致するエントリを探索．h の key 値を map[string]interface{} で返す関数を helper に作って，各 h の key をチェック
+				if h.Match[key] == id {
+					entry = myutils.BuildTableEntry()
+					break
+				}
+			}
+			if (entry == nil) {
+				/* ERROR 処理 */
+				/* ERROR ログを出力し id を teid から削除する．delCh <- id　する．*/
 			}
 
 			// 取得した TEID の DirectCounterEntry を生成．
-		}
+			dcntentry := &v1.DirectCounterEntry{
+				TableEntry: entry,
+			}
 
-		// READ RPC で一気にカウンタ値を取得
+			// READ RPC でカウンタ値を取得
+			rclient := myutils.CreateReadClient()
+			entitiy := (rclient.Recv()).GetEntities()
+			if entitiy == nil {
+				/* ERROR 処理 */
+			}
+			counter := entity[0].GetDirectCounterEntry()
+			if counter == nil {
+				/* ERROR 処理 */
+			}
 
-		// 取得した各カウンタ値について超過有無を確認
-		for _, cnt := range {
-			// 超過していたら rptCh で通知．TEID を table entry から逆引きする関数用意する．
-			rptCh <- /* TEID */
+			// 取得した各カウンタ値について超過有無を確認．超過していたら MeterEntry を生成し，initialize 呼び出し（goroutine）
+			cnt := counter.Data.ByteCount
+			if limit < cnt {
+				log.Println("INFO: Exceed the given traffic amount of TEID ", id)
+				dmeterentry := &v1.Entitity{
+					Entitiy: &v1.Entity_DirectMeterEntry{
+						DirectMeterEntry: &v1.DirectMeterEntry{
+							TableEntry: entry,
+							Config: mconf,
+						}
+					}
+				}
+				update, err := myutils.NewUpdate("INSERT", dmeterentry, p4info)
+				if err != nil {
+					/* ERROR 処理 */
+				}
+				updates := []*v1.Update{update}
+				_, err := myutils.SendWriteRequest(cntlInfo, updates, "CONTINUE_ON_ERROR", client) 
+				if err != nil {
+					/* ERROR 処理 */
+				}
+				log.Println("INFO: Meter Entry is successfully written.")
+				go Initializer(entry)
+			}
 		}
 
 		// 一定時間待機
@@ -188,25 +234,10 @@ func MonitorTraffic() {
 	}
 }
 
-func ControlMeter() {
-	// rptCh を待機し，TEID を受信したら MeterEntry 登録（流量制御設定）
-	for {
-		id := <- rptCh
-
-		// トラヒック量超過をログ出力
-		log.Println("INFO: Exceed the given traffic amount of TEID ", id)
-
-		// MeterEntry 登録
-
-		// 初期化プロセス
-		go Initializer(id)	
-	}	
-}
-
-func Initializer(id uint16) {
+func Initializer(entry *v1.TableEntry) {
 
 	// 一定時間待機（速度制限）
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 10)
 
 	// トラヒック量超過した TEID のカウンタ値をゼロクリア
 	/* TODO */
