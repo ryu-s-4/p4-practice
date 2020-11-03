@@ -87,10 +87,7 @@ func main() {
 		if err := nil {
 			log.Fatal("ERROR: failed to build table entry. ", err)
 		}
-		update := &v1.Update{
-			Type: "INSERT",
-			Entity: tent,
-		}
+		update := myutils.NewUpdate("INSERT", tent)
 		updates = append(updates, update)
 	}
 	for _, h := range cp.entries.MulticastGroupEntries {
@@ -98,10 +95,7 @@ func main() {
 		if err := nil {
 			log.Fatal("ERROR: failed to build multicast group entry. ", err)
 		}
-		update := &v1.Update{
-			Type: "INSERT",
-			Entity: ment,
-		}
+		update := myutils.NewUpdate("INSERT", ment)
 		updates = append(updates, update)		
 	}
 	err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
@@ -117,7 +111,6 @@ func main() {
 	go MonitorTraffic() 
 
 	// 監視対象 TEID を登録/削除
-	/* TODO: 簡易 CLI で TEID の登録・削除 */
 	cmd string
 	teid uint16
 	fmt.Println("========== Meter Regist/Delete ==========")
@@ -259,7 +252,7 @@ func Initializer(entry *v1.TableEntry) {
 	log.Println("INFO: Waiting for the cancellation ... (for 10 seconds)")
 	time.Sleep(time.Second * 10)
 	log.Println("INFO: Traffic Limitation is cancelled.")
-	
+
 	// トラヒック量超過した TEID のカウンタ値をゼロクリア
 	/* TODO: Bmv2 では Counter の Reset がサポートされていない様子．
 	log.Println("INFO: Counter of TEID ", id, " is initialized")
