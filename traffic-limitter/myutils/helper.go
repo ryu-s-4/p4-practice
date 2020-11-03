@@ -25,12 +25,6 @@ import (
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 )
 
-// Helper ...
-type Helper struct {
-	P4Info  *config_v1.P4Info
-	Entries *EntryHelper
-}
-
 // EntryHelper is helper for Entry
 type EntryHelper struct {
 	ExternEntries         []*ExternEntryHelper         `json:"extern_entries"`
@@ -93,7 +87,7 @@ type DigestEntryHelper struct {
 }
 
 // BuildTableEntry creates TableEntry in the form of Entity_TableEntry.
-func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableEntry, error) {
+func (h *TableEntryHelper) BuildTableEntry(p *config_v1.P4Info) (*v1.Entity_TableEntry, error) {
 
 	// find "Table" instance that matches h.Table (table name)
 	var table *config_v1.Table
@@ -305,7 +299,7 @@ func GetParam(value interface{}, width int32) ([]byte, error) {
 }
 
 // BuildMulticastGroupEntry creates MulticastGroupEntry in the form of Entity_PacketRelicationEngineEntry.
-func BuildMulticastGroupEntry(h *MulticastGroupEntryHelper) (*v1.Entity_PacketReplicationEngineEntry, error) {
+func (h *MulticastGroupEntryHelper) BuildMulticastGroupEntry() (*v1.Entity_PacketReplicationEngineEntry, error) {
 
 	// create "Replica" instances from the helper.
 	replicas := make([]*v1.Replica, 0)
@@ -327,7 +321,7 @@ func BuildMulticastGroupEntry(h *MulticastGroupEntryHelper) (*v1.Entity_PacketRe
 }
 
 // BuildCounterEntry builds
-func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_CounterEntry, error) {
+func (h *CounterEntryHelper) BuildCounterEntry(p *config_v1.P4Info) (*v1.Entity_CounterEntry, error) {
 
 	// find "Counter" instance that matches h.Counter (counter name).
 	var flag bool
@@ -357,7 +351,7 @@ func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_Co
 }
 
 // GetCounterSpec_Unit gets the unit of "counter" instance.
-func GetCounterSpec_Unit(counter string, p config_v1.P4Info) (config_v1.CounterSpec_Unit, error) {
+func GetCounterSpec_Unit(counter string, p *config_v1.P4Info) (config_v1.CounterSpec_Unit, error) {
 
 	var flag bool
 	var cnt *config_v1.Counter

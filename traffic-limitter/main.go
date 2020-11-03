@@ -20,20 +20,36 @@ import (
 regCh chan uint16
 delCh chan uint16
 
+cp := myutils.ControlPlaneClient{
+	deviceid: 0,
+	electionid: &v1.Uint128{ High: 0, Low: 1},
+}
+
+limit := 1000000 /* トラヒック量の制限値 */
+mconf := &v1.MeterConfig{
+	Cir: 10000,  // 10KBps = 80kbps
+	Cburst: 500, // 500 Bytes
+	Pir: 5000, // 5KBps = 40kbps
+	Pburst 250, // 250 Bytes
+}
+
 func main() {
 
-	/* 各種情報を設定 */
-	cntlInfo := myutils.ControllerInfo{
-		deviceid:    0,
-		electionid:  v1.Uint128{High: 0, Low: 1},
-		p4infoPath:  "./p4info.txt",
-		devconfPath: "./switching.json",
-		runconfPath: "./runtime.json",
+	/* 各種 config を初期化 */
+	p4infoPath := "./p4info.txt"
+	devconfPath := "./switching.json"
+	runconfPath := "./runtime.json"
+
+	err := cp.InitConfig(p4infoPath, devconfPath, runconfPath)
+	if err != nil {
+		log.Fatal("ERROR: failed to initialize the configurations. ", err)
 	}
+	log.Println("INFO: P4Info/ForwardingPipelineConfig/EntryHelper is successfully loaded.")
+
+	/* gRPC connection 確立 */
 	addr := "127.0.0.1" /* gRPC サーバのアドレス */
 	port := "50051"     /* gRPC サーバのポート番号 */
 
-	/* gRPC connection 確立 */
 	conn, err := grpc.Dial(addr+":"+port, grpc.WithInsecure())
 	if err != nil {
 		log.Fatal("ERROR: failed to establish gRPC connection. ", err)
@@ -41,50 +57,58 @@ func main() {
 	defer conn.Close()
 
 	/* P4runtime Client インスタンス生成 */
-	client := v1.NewP4RuntimeClient(conn)
+	cp.client := v1.NewP4RuntimeClient(conn)
 
 	/* StreamChanel 確立 */
-	ch, err := client.StreamChannel(context.TODO())
+	err := cp.InitChannel()
 	if err != nil {
 		log.Fatal("ERROR: failed to establish StreamChannel. ", err)
 	}
+	log.Println("INFO: StreamChannel is successfully established.")
 
 	/* MasterArbitrationUpdate */
-	_, err = myutils.MasterArbitrationUpdate(cntlInfo, ch)
+	_, err := cp.MasterArbitrationUpdate()
 	if err != nil {
-		log.Fatal("ERROR: failed to get arbitration. ", err)
+		log.Fatal("ERROR: failed to get the arbitration. ", err)
 	}
 	log.Printf("INFO: MasterArbitrationUpdate successfully done.")
 
 	/* SetForwardingPipelineConfig */
-	actionType := "VERIFY_AND_COMMIT"
-	_, err = myutils.SetForwardingPipelineConfig(cntlInfo, actionType, client)
+	_, err := cp.SetForwardingPipelineConfig("VERIFY_AND_COMMIT")
 	if err != nil {
 		log.Fatal("ERROR: failed to set forwarding pipeline config. ", err)
 	}
 	log.Printf("INFO: SetForwardingPipelineConfig successfully done.")
 
-	/* P4Info を読込み */
-	p4infoText, err := ioutil.ReadFile(cntlInfo.p4infoPath)
+	/* Table Entry / Multicast Group Entry を登録 */
+	var updates []*v1.Update
+	for _, h := range cp.entries.TableEntries {
+		tent, err := h.BuildTableEntry(cp.p4info)
+		if err := nil {
+			log.Fatal("ERROR: failed to build table entry. ", err)
+		}
+		update := &v1.Update{
+			Type: "INSERT",
+			Entity: tent,
+		}
+		updates = append(updates, update)
+	}
+	for _, h := range cp.entries.MulticastGroupEntries {
+		ment, err := h.BuildMulticastGroupEntry(cp.p4info)
+		if err := nil {
+			log.Fatal("ERROR: failed to build multicast group entry. ", err)
+		}
+		update := &v1.Update{
+			Type: "INSERT",
+			Entity: ment,
+		}
+		updates = append(updates, update)		
+	}
+	err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 	if err != nil {
-		log.Fatal("ERROR: failed to read p4info file.", err)
+		log.Fatal("ERROR: failed to write entries. ", err)
 	}
-	var p4info config_v1.P4Info
-	if err := proto.UnmarshalText(string(p4infoText), &p4info); err != nil {
-		log.Fatal("ERROR: cannot unmarshal p4info.txt.", err)
-	}
-	log.Printf("INFO: P4Info is successfully loaded.")
-
-	/* Entry Helper を読込み */
-	entries, err := ioutil.ReadFile(cntlInfo.runconfPath)
-	if err != nil {
-		log.Fatal("ERROR: cannot read file (runtime).", err)
-	}
-	var entryhelper myutils.EntryHelper
-	if err := json.Unmarshal(entries, &entryhelper); err != nil {
-		log.Fatal("ERROR: cannot unmarshal runtime.", err)
-	}
-	log.Printf("INFO: Entries (C/P configuration) are successfully loaded.")
+	log.Println("INFO: Entries are successfully written.")
 
 	// Traffic Monitor を行う goroutine を起動
 	regCh = make(chan uint16, 10)
@@ -124,14 +148,6 @@ func main() {
 	os.Exit(0)
 }
 
-limit := 1000000 /* トラヒック量の制限値 */
-mconf := &v1.MeterConfig{
-	Cir: 10000,  // 10KBps = 80kbps
-	Cburst: 500, // 500 Bytes
-	Pir: 5000, // 5KBps = 40kbps
-	Pburst 250, // 250 Bytes
-}
-
 func MonitorTraffic() {
 
 	var teid []uint16
@@ -163,11 +179,9 @@ func MonitorTraffic() {
 	}
 
 	key := "hdr.gtu_u.teid" /* TEID を逆引きするための key 値 */
-	unit := /* Direct Counter の測定単位を事前に取得．BYTES 単位のみ許容する．ERROR 処理 */
-	switch unit {
-	case config_v1.CounterSpec_BYTES:
-		/* OK */
-	default:
+	counter := "meter_cnt"
+	unit := myutils.GetCounterSpec_Unit(counter, cp.p4info)
+	if unit != config_v1.CounterSpec_BYTES{
 		log.Fatal("ERROR: Counter Unit is only allowed to be \"Bytes\".")
 	}
 
@@ -176,9 +190,9 @@ func MonitorTraffic() {
 
 			/* TEID から table entry 生成．helper から逆引き．もっとちゃんとしようとするとデータベースからエントリの json ファイル引っ張ってきて，helper 変数に落とし込んで build entry */
 			var entry *v1.TableEntry = nil
-			for _, h :=  range entryhelper.TableEntries {
+			for _, h :=  range cp.entries.TableEntries {
 				if h.Match[key] == id {
-					entry = myutils.BuildTableEntry()
+					entry = h.BuildTableEntry(cp.p4info)
 					break
 				}
 			}
@@ -187,13 +201,18 @@ func MonitorTraffic() {
 				/* ERROR ログを出力し id を teid から削除する．delCh <- id　する．*/
 			}
 
-			// 取得した TEID の DirectCounterEntry を生成．
-			dcntentry := &v1.DirectCounterEntry{
-				TableEntry: entry,
-			}
-
 			// READ RPC でカウンタ値を取得
-			rclient := myutils.CreateReadClient()
+			entities := []*v1.Entity{}
+			entities = append(entities, 
+				&v1.Entity{ 
+					Entity: &Entity_DirectCounterEntry{ 
+						DirectCounterEntry: &v1.DirectCounterEntry{
+							TableEntry: entry,
+						},
+					},
+				},
+			)
+			rclient := cp.CreateReadClient(entities)
 			entitiy := (rclient.Recv()).GetEntities()
 			if entitiy == nil {
 				/* ERROR 処理 */
@@ -215,12 +234,12 @@ func MonitorTraffic() {
 						}
 					}
 				}
-				update, err := myutils.NewUpdate("INSERT", dmeterentry, p4info)
+				update, err := myutils.NewUpdate("INSERT", dmeterentry)
 				if err != nil {
 					/* ERROR 処理 */
 				}
 				updates := []*v1.Update{update}
-				_, err := myutils.SendWriteRequest(cntlInfo, updates, "CONTINUE_ON_ERROR", client) 
+				_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR") 
 				if err != nil {
 					/* ERROR 処理 */
 				}
@@ -237,14 +256,22 @@ func MonitorTraffic() {
 func Initializer(entry *v1.TableEntry) {
 
 	// 一定時間待機（速度制限）
+	log.Println("INFO: Waiting for the cancellation ... (for 10 seconds)")
 	time.Sleep(time.Second * 10)
-
+	log.Println("INFO: Traffic Limitation is cancelled.")
+	
 	// トラヒック量超過した TEID のカウンタ値をゼロクリア
-	/* TODO */
+	/* TODO: Bmv2 では Counter の Reset がサポートされていない様子．
 	log.Println("INFO: Counter of TEID ", id, " is initialized")
+	*/
 
 	// MeterEntry 削除
-	/* TODO */
+	updates := []*v1.Update{}
+	update := myutils.NewUpdate("DELETE", &v1.Entity{Entity: entry})
+	err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
+	if err != nil {
+		/* ERROR 処理 */
+	}
 	log.Println("INFO: Entries for TEID ", id, " is deleted")
 
 	return 

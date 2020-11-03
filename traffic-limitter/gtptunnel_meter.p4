@@ -82,7 +82,7 @@ header gtp_u_t {
 
 struct metadata {
     bit<2> color;
-    bit<32> cnt_idx;
+    bit<16> cnt_idx;
 }
 
 struct headers {
@@ -175,7 +175,8 @@ control MyIngress(inout headers hdr,
     counter(CNT_SIZE, CounterType.packets) traffic_cnt;
     */
 
-    direct_counter(CounterType.packets) meter_cnt;
+    const bit<16> CNT_SIZE = 0xffff;
+    counter(CNT_SIZE, CounterType.packets) meter_cnt;
     direct_meter<bit<2>>(MeterType.bytes) limitter;
     
     action drop() {
@@ -192,15 +193,9 @@ control MyIngress(inout headers hdr,
 
     action switching(egressSpec_t port) {
         standard_metadata.egress_spec = port;
-    }
 
-    action switching_vlan(egressSpec_t port) {
-        standard_metadata.egress_spec = port;
-
-        /* 転送したトラヒックをカウント
-        meta.cnt_idx = (bit<32>) hdr.vlan.id;
-        traffic_cnt.count(meta.cnt_idx);
-        */
+        /* TEID 毎にトラヒック量監視 */
+        meter_cnt.count(hdr.gtp_u.teid)
     }
 
     action limit_traffic() {
@@ -230,7 +225,7 @@ control MyIngress(inout headers hdr,
             hdr.ethernet.dstAddr: exact;
         }
         actions = {
-            switching_vlan;
+            switching;
             broadcast_vlan;
             drop;
         }
@@ -244,7 +239,6 @@ control MyIngress(inout headers hdr,
             limit_traffic;
             NoAction();
         }
-        direct_counter = meter_cnt;
         direct_meter = limitter;
         default_action = NoAction();
     }
@@ -256,7 +250,6 @@ control MyIngress(inout headers hdr,
         }
 
         if (hdr.vlan.isValid()) {
-            meta.cnt_idx = (bit<32>) hdr.vlan.id;
             if (!mac_vlan_exact.apply().hit) {
                 /* TODO: MAC learning */
             }

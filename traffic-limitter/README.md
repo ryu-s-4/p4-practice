@@ -16,6 +16,7 @@ GTP を使う．TEID 毎にトラヒックカウント．P4 プログラムは i
   - runtime は table 毎に分けて，TEID と紐づく table entry を探すときに楽にする．
     - ちゃんとやるときは table 毎にデータベースでエントリ管理し，データベースから json 取得 / json 更新をする．
   - io.go や helper.go の各関数を具備した構造体変数 ControlPlaneClient を作り，MonitorTraffic にはその構造体変数のポインタを引数として渡す（ControlPlaneClient への write は原則行わない）
+  - DirectMeter の INSER/DELETE はサポートされていない．TEID 毎の Traffic Counter は別途用意し，通過トラヒックについて確認が必要．
 - 解説記事
   - 実装内容の概要
     - meter を使った流量制限機能（BMv2 の meter 実装の都合上，動作確認はパケットサイズの制限を使って確認）

@@ -9,34 +9,86 @@ import (
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 )
 
-// ControllerInfo is information for the controller
-type ControllerInfo struct {
-	deviceid    uint64
-	roleid      uint64
-	electionid  v1.Uint128
-	p4infoPath  string
-	devconfPath string
-	runconfPath string
+// ControlPlaneClient ...
+type ControlPlaneClient struct {
+	deviceid   uint64
+	roleid     uint64
+	electionid v1.Uint128
+	p4info     *config_v1.P4Info
+	config     *v1.ForwardingPipelineConfig
+	entries    *EntryHelper
+	client     v1.P4RuntimeClient
+	channel    v1.P4Runtime_StreamChannelClient
+}
+
+// InitConfig initializes P4Info / ForwardingPipelineConfig / EntryHelper for the ControlPlaneClient.
+func (cp *ControlPlaneClient) InitConfig(p4infoPath string, devconfPath string, runconfPath string) error {
+
+	// P4Info
+	p4infoBytes, err := ioutil.ReadFile(p4infoPath)
+	if err != nil {
+		return err
+	}
+	err := proto.UnmarshalText(string(p4infoBytes), cp.p4info)
+	if err != nil {
+		return err
+	}
+
+	// ForwardingPipelineConfig
+	devconf, err := ioutil.ReadFile(devconfPath)
+	if err != nil {
+		return err
+	}
+	cp.config = v1.ForwardingPipelineConfig{
+		P4Info:         cp.p4info,
+		P4DeviceConfig: devconf,
+	}
+
+	// EntryHelper
+	runtime, err := ioutil.ReadFile(runconfPath)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(runtime, cp.entries); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// InitChannel ...
+func (cp *ControlPlaneClient) InitChannel() error {
+
+	if cp.client != nil {
+		ch, err := cp.client.StreamChannel(context.TODO())
+		if err != nil {
+			return err
+		}
+		cp.channel = ch
+		return nil
+	} else {
+		return fmt.Errorf("P4RuntimeClient is NOT created")
+	}
 }
 
 // MasterArbitrationUpdate gets arbitration for the master
-func MasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamChannelClient) (*v1.MasterArbitrationUpdate, error) {
+func (cp *ControlPlaneClient) MasterArbitrationUpdate() (*v1.MasterArbitrationUpdate, error) {
 
 	request := v1.StreamMessageRequest{
 		Update: &v1.StreamMessageRequest_Arbitration{
 			Arbitration: &v1.MasterArbitrationUpdate{
-				DeviceId:   cntlInfo.deviceid,
-				ElectionId: &cntlInfo.electionid,
+				DeviceId:   cp.deviceid,
+				ElectionId: cp.electionid,
 			},
 		},
 	}
 
-	err := ch.Send(&request)
+	err := cp.channel.Send(&request)
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := ch.Recv()
+	response, err := cp.channel.Recv()
 	if err != nil {
 		return nil, err
 	}
@@ -47,52 +99,14 @@ func MasterArbitrationUpdate(cntlInfo ControllerInfo, ch v1.P4Runtime_StreamChan
 	case *v1.StreamMessageResponse_Arbitration:
 		arbitration := response.GetArbitration()
 		return arbitration, nil
-
-	case *v1.StreamMessageResponse_Packet:
-		/* TODO */
-		/* packet := response.GetPacket() */
-
-	case *v1.StreamMessageResponse_Digest:
-		/* TODO */
-		/* digest := response.GetDigest() */
-
-	case *v1.StreamMessageResponse_IdleTimeoutNotification:
-		/* TODO */
-		/* idletimenotf := response.GetIdleTimeoutNotification() */
 	}
 
 	/* unknown update response type is received. */
 	return nil, fmt.Errorf("unknown update response type")
 }
 
-// MyCreateConfig creates config data for SetForwardingPipelineConfig
-func MyCreateConfig(p4infoPath string, devconfPath string) (*v1.ForwardingPipelineConfig, error) {
-
-	p4info := config_v1.P4Info{}
-	p4infoBytes, err := ioutil.ReadFile(p4infoPath)
-	if err != nil {
-		return nil, err
-	}
-	proto.UnmarshalText(string(p4infoBytes), &p4info)
-
-	var devconf []byte
-	devconf, err = ioutil.ReadFile(devconfPath)
-	if err != nil {
-		return nil, err
-	}
-
-	forwardingpipelineconfig := v1.ForwardingPipelineConfig{
-		P4Info:         &p4info,
-		P4DeviceConfig: devconf}
-
-	return &forwardingpipelineconfig, nil
-}
-
 // SetForwardingPipelineConfig sets the user defined configuration to the data plane.
-func SetForwardingPipelineConfig(
-	cntlInfo ControllerInfo,
-	actionType string,
-	client v1.P4RuntimeClient) (*v1.SetForwardingPipelineConfigResponse, error) {
+func (cp *ControlPlaneClient) SetForwardingPipelineConfig(actionType string) (*v1.SetForwardingPipelineConfigResponse, error) {
 
 	var action v1.SetForwardingPipelineConfigRequest_Action
 	switch actionType {
@@ -110,31 +124,21 @@ func SetForwardingPipelineConfig(
 		action = v1.SetForwardingPipelineConfigRequest_UNSPECIFIED
 	}
 
-	config, err := MyCreateConfig(cntlInfo.p4infoPath, cntlInfo.devconfPath)
-	if err != nil {
-		return nil, err
-	}
-
 	request := v1.SetForwardingPipelineConfigRequest{
-		DeviceId:   cntlInfo.deviceid,
-		ElectionId: &cntlInfo.electionid,
+		DeviceId:   cp.deviceid,
+		ElectionId: cp.electionid,
 		Action:     action,
-		Config:     config}
+		Config:     cp.config}
 
-	response, err := client.SetForwardingPipelineConfig(context.TODO(), &request)
+	response, err := cp.client.SetForwardingPipelineConfig(context.TODO(), &request)
 	if err != nil {
 		return nil, err
 	}
-
 	return response, nil
 }
 
 // SendWriteRequest sends write request to the data plane.
-func SendWriteRequest(
-	cntlInfo ControllerInfo,
-	updates []*v1.Update,
-	atomisityType string,
-	client v1.P4RuntimeClient) (*v1.WriteResponse, error) {
+func (cp *ControlPlaneClient) SendWriteRequest(updates []*v1.Update, atomisityType string) (*v1.WriteResponse, error) {
 
 	var atomisity v1.WriteRequest_Atomicity
 	switch atomisityType {
@@ -148,36 +152,31 @@ func SendWriteRequest(
 		atomisity = v1.WriteRequest_CONTINUE_ON_ERROR
 	}
 
-	writeRequest := v1.WriteRequest{
-		DeviceId:   cntlInfo.deviceid,
-		ElectionId: &cntlInfo.electionid,
+	request := v1.WriteRequest{
+		DeviceId:   cp.deviceid,
+		ElectionId: cp.electionid,
 		Updates:    updates,
 		Atomicity:  atomisity,
 	}
 
-	writeResponse, err := client.Write(context.TODO(), &writeRequest)
+	response, err := cp.client.Write(context.TODO(), &request)
 	if err != nil {
 		return nil, err
 	}
-
-	return writeResponse, nil
+	return response, nil
 }
 
 // CreateReadClient creates New ReadClient.
-func CreateReadClient(
-	cntlInfo ControllerInfo,
-	entities []*v1.Entity,
-	client v1.P4RuntimeClient) (v1.P4Runtime_ReadClient, error) {
+func (cp *ControlPlaneClient) CreateReadClient(entities []*v1.Entity) (v1.P4Runtime_ReadClient, error) {
 
-	readRequest := v1.ReadRequest{
-		DeviceId: cntlInfo.deviceid,
+	request := v1.ReadRequest{
+		DeviceId: cp.deviceid,
 		Entities: entities,
 	}
 
-	readclient, err := client.Read(context.TODO(), &readRequest)
+	readclient, err := cp.client.Read(context.TODO(), &readRequest)
 	if err != nil {
 		return nil, err
 	}
-
 	return readclient, nil
 }
