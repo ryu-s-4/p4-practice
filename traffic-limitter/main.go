@@ -3,44 +3,47 @@
 package main
 
 import (
-	"context"
+	// "context"
 	"fmt"
-	"io/ioutil"
+	// "io/ioutil"
 	"log"
+	"os"
+	"time"
 
 	"github.com/p4-practice/traffic-limitter/myutils"
 
-	"github.com/golang/protobuf/proto"
+	// "github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 	"google.golang.org/grpc"
 )
 
 // Controll channel for register / delete TEID to be monitored. 
-regCh chan uint16
-delCh chan uint16
+var regCh chan int64
+var delCh chan int64
 
-cp := myutils.ControlPlaneClient{
-	deviceid: 0,
-	electionid: &v1.Uint128{ High: 0, Low: 1},
-}
+var cp myutils.ControlPlaneClient
 
-limit := 1000000 /* トラヒック量の制限値 */
-mconf := &v1.MeterConfig{
-	Cir: 10000,  // 10KBps = 80kbps
-	Cburst: 500, // 500 Bytes
-	Pir: 5000,   // 5KBps = 40kbps
-	Pburst 250,  // 250 Bytes
-}
+var limit int64
+var mconf *v1.MeterConfig
 
 func main() {
 
-	/* 各種 config を初期化 */
-	p4infoPath := "./p4info.txt"
-	devconfPath := "./switching.json"
-	runconfPath := "./runtime.json"
+	var (
+		deviceid uint64 = 0
+		electionid = &v1.Uint128{ High: 0, Low: 1}
+		p4infoPath string = "./p4info.txt"
+		devconfPath string = "./gtptunnel_meter.json"
+		runconfPath string = "./runtime.json"
+		err error
+	)
 
-	err := cp.InitConfig(p4infoPath, devconfPath, runconfPath)
+	/* コントロールプロセスを初期化 */
+	var cp myutils.ControlPlaneClient
+	cp.DeviceId = deviceid
+	cp.ElectionId = electionid
+
+	err = cp.InitConfig(p4infoPath, devconfPath, runconfPath)
 	if err != nil {
 		log.Fatal("ERROR: failed to initialize the configurations. ", err)
 	}
@@ -57,24 +60,24 @@ func main() {
 	defer conn.Close()
 
 	/* P4runtime Client インスタンス生成 */
-	cp.client := v1.NewP4RuntimeClient(conn)
+	cp.Client = v1.NewP4RuntimeClient(conn)
 
 	/* StreamChanel 確立 */
-	err := cp.InitChannel()
+	err = cp.InitChannel()
 	if err != nil {
 		log.Fatal("ERROR: failed to establish StreamChannel. ", err)
 	}
 	log.Println("INFO: StreamChannel is successfully established.")
 
 	/* MasterArbitrationUpdate */
-	_, err := cp.MasterArbitrationUpdate()
+	_, err = cp.MasterArbitrationUpdate()
 	if err != nil {
 		log.Fatal("ERROR: failed to get the arbitration. ", err)
 	}
 	log.Printf("INFO: MasterArbitrationUpdate successfully done.")
 
 	/* SetForwardingPipelineConfig */
-	_, err := cp.SetForwardingPipelineConfig("VERIFY_AND_COMMIT")
+	_, err = cp.SetForwardingPipelineConfig("VERIFY_AND_COMMIT")
 	if err != nil {
 		log.Fatal("ERROR: failed to set forwarding pipeline config. ", err)
 	}
@@ -82,37 +85,46 @@ func main() {
 
 	/* Table Entry / Multicast Group Entry を登録 */
 	var updates []*v1.Update
-	for _, h := range cp.entries.TableEntries {
-		tent, err := h.BuildTableEntry(cp.p4info)
-		if err := nil {
+	for _, h := range cp.Entries.TableEntries {
+		tent, err := h.BuildTableEntry(cp.P4Info)
+		if err != nil {
 			log.Fatal("ERROR: failed to build table entry. ", err)
 		}
-		update := myutils.NewUpdate("INSERT", tent)
+		update := myutils.NewUpdate("INSERT", &v1.Entity{ Entity: tent})
 		updates = append(updates, update)
 	}
-	for _, h := range cp.entries.MulticastGroupEntries {
-		ment, err := h.BuildMulticastGroupEntry(cp.p4info)
-		if err := nil {
+	for _, h := range cp.Entries.MulticastGroupEntries {
+		ment, err := h.BuildMulticastGroupEntry()
+		if err != nil {
 			log.Fatal("ERROR: failed to build multicast group entry. ", err)
 		}
-		update := myutils.NewUpdate("INSERT", ment)
+		update := myutils.NewUpdate("INSERT", &v1.Entity{ Entity: ment})
 		updates = append(updates, update)		
 	}
-	err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
+	_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 	if err != nil {
 		log.Fatal("ERROR: failed to write entries. ", err)
 	}
 	log.Println("INFO: Entries are successfully written.")
 
+	// トラヒック制限に関する情報を登録
+	limit = 10000 // bytes
+	mconf = &v1.MeterConfig{
+		Cir: 10000,  // 10KBps = 80kbps
+		Cburst: 500, // 500 Bytes
+		Pir: 5000,   // 5KBps = 40kbps
+		Pburst: 250,  // 250 Bytes
+	}
+
 	// Traffic Monitor を行う goroutine を起動
-	regCh = make(chan uint16, 10)
-	delCh = make(chan uint16, 10)
+	regCh = make(chan int64, 10)
+	delCh = make(chan int64, 10)
 
 	go MonitorTraffic() 
 
 	// 監視対象 TEID を登録/削除
-	cmd string
-	teid uint16
+	var cmd string
+	var teid int64
 	fmt.Println("========== Meter Regist/Delete ==========")
 	fmt.Println("$ reg | del | exit  <TEID> ")
 	fmt.Println("   - reg : register the TEID to be monitored")
@@ -143,7 +155,7 @@ func main() {
 
 func MonitorTraffic() {
 
-	var teid []uint16
+	var teid []int64
 
 	// register TEID to be monitored
 	go func() {
@@ -151,13 +163,15 @@ func MonitorTraffic() {
 			id := <- regCh
 			teid = append(teid, id)
 		}
-	}
+	}()
 
 	// delete TEID to be monitored
-	go func {
+	go func() {
 		for {
-			id := <- delCh
-			for _, i := range teid {
+			id_int64 := <- delCh
+			id := int(id_int64)
+			for _, i_int64 := range teid {
+				i := int(i_int64)
 				if (i == id) {
 					if (i == 0) {
 						teid = teid[1:]
@@ -169,13 +183,16 @@ func MonitorTraffic() {
 				}
 			}
 		}
-	}
+	}()
 
 	table := "urr_exact"
 	match := "hdr.gtu_u.teid"
 	action_name := "limit_traffic"
 	counter := "meter_cnt"
-	unit := myutils.GetCounterSpec_Unit(counter, cp.p4info)
+	unit, err := myutils.GetCounterSpec_Unit(counter, cp.P4Info)
+	if err != nil {
+		log.Fatal("ERROR: Failed to get CounterSpec.", err)
+	}
 	if unit != config_v1.CounterSpec_BYTES{
 		log.Fatal("ERROR: Counter Unit is only allowed to be \"Bytes\".")
 	}
@@ -187,7 +204,7 @@ func MonitorTraffic() {
 				Counter: counter,
 				Index: id,
 			}
-			cntentry, err := cntentryhelper.BuildCounterEntry(cp.p4info)
+			cntentry, err := cntentryhelper.BuildCounterEntry(cp.P4Info)
 			if err != nil {
 				log.Fatal("ERROR: Counter Entry is NOT found.", err)
 			}
@@ -212,9 +229,16 @@ func MonitorTraffic() {
 			// READ RPC でカウンタ値を取得
 			entities := []*v1.Entity{}
 			entities = append(entities, &v1.Entity{Entity: cntentry})
-			rclient := cp.CreateReadClient(entities)
-			entitiy := (rclient.Recv()).GetEntities()
-			if entitiy == nil {
+			rclient, err := cp.CreateReadClient(entities)
+			if err != nil {
+				log.Fatal("ERROR: Failed to create ReadClient.", err)
+			}
+			response, err := rclient.Recv()
+			if err != nil {
+				log.Fatal("ERROR: Failed to receive read respose.", err)
+			}
+			entity := response.GetEntities()
+			if entity == nil {
 				log.Println("ERROR: No entity is received from the read client.")
 				continue
 			}
@@ -235,31 +259,31 @@ func MonitorTraffic() {
 					Match: map[string]interface{}{match: id},
 					Action_Name: action_name,
 				}
-				tentry, err := tentryhelper.BuildTableEntry(cp.p4info)
+				tentry, err := tentryhelper.BuildTableEntry(cp.P4Info)
 				if err != nil {
 					log.Fatal("ERROR: Cannot build the table entry.", err)
 				}
-				tentry_update := myutils.NewUpdate("INSERT", tentry)
+				tentry_update := myutils.NewUpdate("INSERT", &v1.Entity{ Entity: tentry})
 
 				// direct meter entry の生成
-				dmeterentry := &v1.Entitity{
-					Entitiy: &v1.Entity_DirectMeterEntry{
+				dmeterentry := &v1.Entity{
+					Entity: &v1.Entity_DirectMeterEntry{
 						DirectMeterEntry: &v1.DirectMeterEntry{
-							TableEntry: tentry,
+							TableEntry: tentry.TableEntry,
 							Config: mconf,
-						}
-					}
+						},
+					},
 				}
 				dmeter_update := myutils.NewUpdate("MODIFY", dmeterentry)
 
 				// WRITE RPC
 				updates := []*v1.Update{tentry_update, dmeter_update}
-				_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR") 
+				_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR") 
 				if err != nil {
 					log.Fatal("ERROR: write RPC has been failed.", err)
 				}
 				log.Println("INFO: TableEntry and DirectMeterEntry are successfully written.")
-				go Initializer(entry)
+				go Initializer(tentry)
 			}
 		}
 
@@ -268,7 +292,7 @@ func MonitorTraffic() {
 	}
 }
 
-func Initializer(entry *v1.TableEntry) {
+func Initializer(entry *v1.Entity_TableEntry) {
 
 	// 一定時間待機（速度制限）
 	log.Println("INFO: Waiting for the cancellation ... (for 10 seconds)")
@@ -283,11 +307,13 @@ func Initializer(entry *v1.TableEntry) {
 	// MeterEntry 削除
 	updates := []*v1.Update{}
 	update := myutils.NewUpdate("DELETE", &v1.Entity{Entity: entry})
-	err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
+	updates = append(updates, update)
+	_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 	if err != nil {
 		/* ERROR 処理 */
+		log.Fatal("ERROR: Failed to delete DirectMeterEntry.", err)
 	}
-	log.Println("INFO: Entries for TEID ", id, " is deleted")
+	log.Println("INFO: DirectMeterEntry is successfully deleted. (traffic volume is restored)")
 
 	return 
 }

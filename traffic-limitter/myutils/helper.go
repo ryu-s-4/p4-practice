@@ -379,24 +379,24 @@ func NewUpdate(updateType string, entity *v1.Entity) *v1.Update {
 		update := v1.Update{
 			Type:   v1.Update_INSERT,
 			Entity: entity}
-		return &update, nil
+		return &update
 
 	case "MODIFY":
 		update := v1.Update{
 			Type:   v1.Update_MODIFY,
 			Entity: entity}
-		return &update, nil
+		return &update
 
 	case "DELETE":
 		update := v1.Update{
 			Type:   v1.Update_DELETE,
 			Entity: entity}
-		return &update, nil
+		return &update
 
 	default:
 		update := v1.Update{
 			Type:   v1.Update_UNSPECIFIED,
 			Entity: entity}
-		return &update, nil
+		return &update
 	}
 }

@@ -58,7 +58,7 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
-header udp_h {
+header udp_t {
     bit<16> srcPort;
     bit<16> dstPort;
     bit<16> len;
@@ -82,7 +82,7 @@ header gtp_u_t {
 
 struct metadata {
     bit<2> color;
-    bit<16> cnt_idx;
+    bool drop_flag;
 }
 
 struct headers {
@@ -91,7 +91,7 @@ struct headers {
     vlan_t      vlan;
     ipv4_t      ipv4;
     udp_t       udp;
-    gtp_u_t     gtpu;
+    gtp_u_t     gtp_u;
 }
 
 /*************************************************************************
@@ -142,13 +142,13 @@ parser MyParser(packet_in packet,
     state parse_udp {
         packet.extract(hdr.udp);
         transition select(hdr.udp.dstPort) {
-            PORT_GTPU : parse_gtpu;
+            PORT_GTPU : parse_gtp_u;
             default : accept;
         }
     }
 
-    state parse_gtpu {
-        packet.extract(hdr.gtpu);
+    state parse_gtp_u {
+        packet.extract(hdr.gtp_u);
         transition accept;
     }
 }
@@ -175,7 +175,7 @@ control MyIngress(inout headers hdr,
     counter(CNT_SIZE, CounterType.packets) traffic_cnt;
     */
 
-    const bit<16> CNT_SIZE = 0xffff;
+    const bit<32> CNT_SIZE = 0xffffffff;
     counter(CNT_SIZE, CounterType.packets) meter_cnt;
     direct_meter<bit<2>>(MeterType.bytes) limitter;
     
@@ -195,14 +195,14 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = port;
 
         /* TEID 毎にトラヒック量監視 */
-        meter_cnt.count(hdr.gtp_u.teid)
+        meter_cnt.count(hdr.gtp_u.teid);
     }
 
     action limit_traffic() {
         /* hit したエントリの (direct) meter を確認し超過している場合は速度制限 */
         limitter.read(meta.color);
         if (meta.color == V1MODEL_METER_COLOR_RED) {
-            drop();
+            meta.drop_flag = true;
         }
     }
   
@@ -239,14 +239,18 @@ control MyIngress(inout headers hdr,
             limit_traffic;
             NoAction();
         }
-        direct_meter = limitter;
+        meters = limitter;
         default_action = NoAction();
     }
     
     apply {
         /* 速度制限の有無を確認 */
-        if (hdr.gtpu.isValid()) {
-            apply.urr_exact();
+        if (hdr.gtp_u.isValid()) {
+            meta.drop_flag = false;
+            urr_exact.apply();
+            if (meta.drop_flag == true) {
+                drop();
+            }
         }
 
         if (hdr.vlan.isValid()) {

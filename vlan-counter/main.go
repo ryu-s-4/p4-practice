@@ -295,8 +295,9 @@ func main() {
 	/* VLAN 毎のトラヒックカウンタ値を取得 */
 	var counter string
 	var index int64
+	var mod string
 	fmt.Println("================ Counter Example ================")
-	fmt.Println("usage: input [counter name] and [index = vlan ID]")
+	fmt.Println("usage: input [counter name] and [index = vlan ID]　and [mod]")
 	fmt.Println("       input \"exit\" if you want to quit")
 	fmt.Println("=================================================")
 	for {
@@ -308,6 +309,8 @@ func main() {
 		}
 		fmt.Print("input vlan ID      : ")
 		fmt.Scan(&index)
+		fmt.Print("input \"clear\" if want : ")
+		fmt.Scan(&mod)
 
 		counterentryhelper := &myutils.CounterEntryHelper{
 			Counter: counter,
@@ -320,6 +323,43 @@ func main() {
 		}
 		entities := make([]*v1.Entity, 0)
 		entities = append(entities, &v1.Entity{Entity: counterentry})
+
+		if mod == "clear" {
+
+			cnt_id := counterentry.CounterEntry.GetCounterId()
+			init_data := &v1.CounterData{
+				ByteCount: 0,
+				PacketCount: 0,
+			}
+			cntent := &v1.Entity_CounterEntry{
+				CounterEntry: &v1.CounterEntry{
+					CounterId: cnt_id,
+					Index: &v1.Index{
+						Index: 0,
+					},
+					Data: init_data,
+				},
+			}
+
+			/*
+			counterentry.CounterEntry.Data = &v1.CounterData{
+				ByteCount: -1,
+				PacketCount: -1,
+			}
+			*/
+
+			upds := []*v1.Update{}
+			upd, err := myutils.NewUpdate("MODIFY", &v1.Entity{Entity: cntent})
+			upds = append(upds, upd)
+			_, err = SendWriteRequest(cntlInfo, upds, "CONTINUE_ON_ERROR", client)
+			if err != nil {
+				log.Fatal("ERROR: write request error. ", err)
+			}
+			log.Println("INFO: Counter Entry is modified.")
+			continue
+		} else {
+
+		}
 
 		cnt_unit, err := myutils.GetCounterSpec_Unit(counter, p4info)
 		if err != nil {

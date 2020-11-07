@@ -32,7 +32,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "host1's MAC address"
+        "hdr.ethernet.dstAddr": "3a:03:c9:c7:08:2b"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
@@ -42,17 +42,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "host3's MAC address"
-      },
-      "action_name": "MyIngress.switching",
-      "action_params": {
-        "port": 1
-      }
-    },
-    {
-      "table": "MyIngress.mac_exact",
-      "match": {
-        "hdr.ethernet.dstAddr": "host5's MAC address"
+        "hdr.ethernet.dstAddr": "ce:94:04:c9:38:73"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
@@ -60,68 +50,25 @@
       }
     },
     {
-      "table": "MyIngress.mac_exact",
+      "table": "MyIngress.mac_vlan_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "host7's MAC address"
+        "hdr.vlan.id": 100,
+        "hdr.ethernet.dstAddr": "3a:03:c9:c7:08:2b"
       },
-      "action_name": "MyIngress.switching",
+      "action_name": "MyIngress.switching_vlan",
       "action_params": {
-        "port": 3
+        "port": 0
       }
     },
-    {  
+    {
       "table": "MyIngress.mac_vlan_exact",
-      "match": {    
-        "hdr.vlan.id": 100,    
-        "hdr.ethernet.dstAddr": "host1's MAC address"    
-      },    
-      "action_name": "MyIngress.switching_vlan",    
-      "action_params": {    
-        "port": 0
-      }    
-    },
-    {  
-      "table": "MyIngress.mac_vlan_exact",
-      "match": {    
-        "hdr.vlan.id": 100,    
-        "hdr.ethernet.dstAddr": "host5's MAC address"    
-      },    
-      "action_name": "MyIngress.switching_vlan",    
-      "action_params": {    
+      "match": {
+        "hdr.vlan.id": 100,
+        "hdr.ethernet.dstAddr": "ce:94:04:c9:38:73"
+      },
+      "action_name": "MyIngress.switching_vlan",
+      "action_params": {
         "port": 2
-      }    
-    },
-    {  
-      "table": "MyIngress.mac_vlan_exact",
-      "match": {    
-        "hdr.vlan.id": 200,    
-        "hdr.ethernet.dstAddr": "host1's MAC address"    
-      },    
-      "action_name": "MyIngress.switching_vlan",    
-      "action_params": {    
-        "port": 0
-      }
-    },
-    {  
-      "table": "MyIngress.mac_vlan_exact",
-      "match": {    
-        "hdr.vlan.id": 200,    
-        "hdr.ethernet.dstAddr": "host3's MAC address"    
-      },    
-      "action_name": "MyIngress.switching_vlan",    
-      "action_params": {    
-        "port": 1
-      }    
-    },
-    {  
-      "table": "MyIngress.mac_vlan_exact",
-      "match": {    
-        "hdr.vlan.id": 200,    
-        "hdr.ethernet.dstAddr": "host7's MAC address"    
-      },    
-      "action_name": "MyIngress.switching_vlan",    
-      "action_params": {    
-        "port": 3
       }
     }
   ],    
