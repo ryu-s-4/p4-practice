@@ -2,9 +2,9 @@ package myutils
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"encoding/json"
 
 	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"

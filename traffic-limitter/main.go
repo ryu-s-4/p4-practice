@@ -3,22 +3,19 @@
 package main
 
 import (
-	// "context"
 	"fmt"
-	// "io/ioutil"
 	"log"
 	"os"
 	"time"
 
 	"github.com/p4-practice/traffic-limitter/myutils"
 
-	// "github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 	"google.golang.org/grpc"
 )
 
-// Controll channel for register / delete TEID to be monitored. 
+// Controll channel for register / delete TEID to be monitored.
 var regCh chan int64
 var delCh chan int64
 
@@ -30,12 +27,12 @@ var mconf *v1.MeterConfig
 func main() {
 
 	var (
-		deviceid uint64 = 0
-		electionid = &v1.Uint128{ High: 0, Low: 1}
-		p4infoPath string = "./p4info.txt"
+		deviceid    uint64 = 0
+		electionid         = &v1.Uint128{High: 0, Low: 1}
+		p4infoPath  string = "./p4info.txt"
 		devconfPath string = "./gtptunnel_meter.json"
 		runconfPath string = "./runtime.json"
-		err error
+		err         error
 	)
 
 	/* コントロールプロセスを初期化 */
@@ -90,7 +87,7 @@ func main() {
 		if err != nil {
 			log.Fatal("ERROR: failed to build table entry. ", err)
 		}
-		update := myutils.NewUpdate("INSERT", &v1.Entity{ Entity: tent})
+		update := myutils.NewUpdate("INSERT", &v1.Entity{Entity: tent})
 		updates = append(updates, update)
 	}
 	for _, h := range cp.Entries.MulticastGroupEntries {
@@ -98,8 +95,8 @@ func main() {
 		if err != nil {
 			log.Fatal("ERROR: failed to build multicast group entry. ", err)
 		}
-		update := myutils.NewUpdate("INSERT", &v1.Entity{ Entity: ment})
-		updates = append(updates, update)		
+		update := myutils.NewUpdate("INSERT", &v1.Entity{Entity: ment})
+		updates = append(updates, update)
 	}
 	_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 	if err != nil {
@@ -110,17 +107,17 @@ func main() {
 	// トラヒック制限に関する情報を登録
 	limit = 10000 // bytes
 	mconf = &v1.MeterConfig{
-		Cir: 10000,  // 10KBps = 80kbps
-		Cburst: 500, // 500 Bytes
-		Pir: 5000,   // 5KBps = 40kbps
-		Pburst: 250,  // 250 Bytes
+		Cir:    10000, // 10KBps = 80kbps
+		Cburst: 500,   // 500 Bytes
+		Pir:    5000,  // 5KBps = 40kbps
+		Pburst: 250,   // 250 Bytes
 	}
 
 	// Traffic Monitor を行う goroutine を起動
 	regCh = make(chan int64, 10)
 	delCh = make(chan int64, 10)
 
-	go MonitorTraffic() 
+	go MonitorTraffic()
 
 	// 監視対象 TEID を登録/削除
 	var cmd string
@@ -160,7 +157,7 @@ func MonitorTraffic() {
 	// register TEID to be monitored
 	go func() {
 		for {
-			id := <- regCh
+			id := <-regCh
 			teid = append(teid, id)
 		}
 	}()
@@ -168,14 +165,14 @@ func MonitorTraffic() {
 	// delete TEID to be monitored
 	go func() {
 		for {
-			id_int64 := <- delCh
+			id_int64 := <-delCh
 			id := int(id_int64)
 			for _, i_int64 := range teid {
 				i := int(i_int64)
-				if (i == id) {
-					if (i == 0) {
+				if i == id {
+					if i == 0 {
 						teid = teid[1:]
-					} else if (i == (len(teid) - 1)) {
+					} else if i == (len(teid) - 1) {
 						teid = teid[:(len(teid) - 1)]
 					} else {
 						teid = append(teid[:i], teid[i+1:]...)
@@ -193,7 +190,7 @@ func MonitorTraffic() {
 	if err != nil {
 		log.Fatal("ERROR: Failed to get CounterSpec.", err)
 	}
-	if unit != config_v1.CounterSpec_BYTES{
+	if unit != config_v1.CounterSpec_BYTES {
 		log.Fatal("ERROR: Counter Unit is only allowed to be \"Bytes\".")
 	}
 	for {
@@ -202,7 +199,7 @@ func MonitorTraffic() {
 			// TEID = id のカウンタ値を取得
 			cntentryhelper := myutils.CounterEntryHelper{
 				Counter: counter,
-				Index: id,
+				Index:   id,
 			}
 			cntentry, err := cntentryhelper.BuildCounterEntry(cp.P4Info)
 			if err != nil {
@@ -255,22 +252,22 @@ func MonitorTraffic() {
 
 				// table entry の生成
 				tentryhelper := myutils.TableEntryHelper{
-					Table: table,
-					Match: map[string]interface{}{match: id},
+					Table:       table,
+					Match:       map[string]interface{}{match: id},
 					Action_Name: action_name,
 				}
 				tentry, err := tentryhelper.BuildTableEntry(cp.P4Info)
 				if err != nil {
 					log.Fatal("ERROR: Cannot build the table entry.", err)
 				}
-				tentry_update := myutils.NewUpdate("INSERT", &v1.Entity{ Entity: tentry})
+				tentry_update := myutils.NewUpdate("INSERT", &v1.Entity{Entity: tentry})
 
 				// direct meter entry の生成
 				dmeterentry := &v1.Entity{
 					Entity: &v1.Entity_DirectMeterEntry{
 						DirectMeterEntry: &v1.DirectMeterEntry{
 							TableEntry: tentry.TableEntry,
-							Config: mconf,
+							Config:     mconf,
 						},
 					},
 				}
@@ -278,7 +275,7 @@ func MonitorTraffic() {
 
 				// WRITE RPC
 				updates := []*v1.Update{tentry_update, dmeter_update}
-				_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR") 
+				_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 				if err != nil {
 					log.Fatal("ERROR: write RPC has been failed.", err)
 				}
@@ -315,6 +312,5 @@ func Initializer(entry *v1.Entity_TableEntry) {
 	}
 	log.Println("INFO: DirectMeterEntry is successfully deleted. (traffic volume is restored)")
 
-	return 
+	return
 }
-
