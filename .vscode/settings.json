@@ -1,7 +1,0 @@
-{
-    "go.autocompleteUnimportedPackages": true,
-    "go.formatTool": "gofmt",
-    "go.formatFlags": [
-        "-s"
-    ]
-}
