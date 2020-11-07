@@ -29,8 +29,8 @@ limit := 1000000 /* トラヒック量の制限値 */
 mconf := &v1.MeterConfig{
 	Cir: 10000,  // 10KBps = 80kbps
 	Cburst: 500, // 500 Bytes
-	Pir: 5000, // 5KBps = 40kbps
-	Pburst 250, // 250 Bytes
+	Pir: 5000,   // 5KBps = 40kbps
+	Pburst 250,  // 250 Bytes
 }
 
 func main() {
@@ -108,6 +108,12 @@ func main() {
 	regCh = make(chan uint16, 10)
 	delCh = make(chan uint16, 10)
 
+	counter := "meter_cnt"
+	unit := myutils.GetCounterSpec_Unit(counter, cp.p4info)
+	if unit != config_v1.CounterSpec_BYTES{
+		log.Fatal("ERROR: Counter Unit is only allowed to be \"Bytes\".")
+	}
+
 	go MonitorTraffic() 
 
 	// 監視対象 TEID を登録/削除
@@ -172,12 +178,6 @@ func MonitorTraffic() {
 	}
 
 	key := "hdr.gtu_u.teid" /* TEID を逆引きするための key 値 */
-	counter := "meter_cnt"
-	unit := myutils.GetCounterSpec_Unit(counter, cp.p4info)
-	if unit != config_v1.CounterSpec_BYTES{
-		log.Fatal("ERROR: Counter Unit is only allowed to be \"Bytes\".")
-	}
-
 	for {
 		for _, id := range teid {
 
@@ -190,8 +190,10 @@ func MonitorTraffic() {
 				}
 			}
 			if (entry == nil) {
-				/* ERROR 処理 */
-				/* ERROR ログを出力し id を teid から削除する．delCh <- id　する．*/
+				log.Println("ERROR: TEID ", id, " is NOT included in the table entry.")
+				log.Println("INFO: TEID ", id, " is deleted from teid.")
+				delCh <- id
+				continue
 			}
 
 			// READ RPC でカウンタ値を取得
@@ -208,11 +210,13 @@ func MonitorTraffic() {
 			rclient := cp.CreateReadClient(entities)
 			entitiy := (rclient.Recv()).GetEntities()
 			if entitiy == nil {
-				/* ERROR 処理 */
+				log.Println("ERROR: No entity is received from the read client.")
+				continue
 			}
 			counter := entity[0].GetDirectCounterEntry()
 			if counter == nil {
-				/* ERROR 処理 */
+				log.Println("ERROR: No counter is received from the read client.")
+				continue
 			}
 
 			// 取得した各カウンタ値について超過有無を確認．超過していたら MeterEntry を生成し，initialize 呼び出し（goroutine）
@@ -234,7 +238,7 @@ func MonitorTraffic() {
 				updates := []*v1.Update{update}
 				_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR") 
 				if err != nil {
-					/* ERROR 処理 */
+					log.Fatal("ERROR: write RPC has been failed.", err)
 				}
 				log.Println("INFO: Meter Entry is successfully written.")
 				go Initializer(entry)
