@@ -372,7 +372,7 @@ func GetCounterSpec_Unit(counter string, p *config_v1.P4Info) (config_v1.Counter
 }
 
 // NewUpdate creates new "Update" instance.
-func NewUpdate(updateType string, entity *v1.Entity) (*v1.Update, error) {
+func NewUpdate(updateType string, entity *v1.Entity) *v1.Update {
 
 	switch updateType {
 	case "INSERT":

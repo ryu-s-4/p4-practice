@@ -108,12 +108,6 @@ func main() {
 	regCh = make(chan uint16, 10)
 	delCh = make(chan uint16, 10)
 
-	counter := "meter_cnt"
-	unit := myutils.GetCounterSpec_Unit(counter, cp.p4info)
-	if unit != config_v1.CounterSpec_BYTES{
-		log.Fatal("ERROR: Counter Unit is only allowed to be \"Bytes\".")
-	}
-
 	go MonitorTraffic() 
 
 	// 監視対象 TEID を登録/削除
@@ -177,11 +171,29 @@ func MonitorTraffic() {
 		}
 	}
 
-	key := "hdr.gtu_u.teid" /* TEID を逆引きするための key 値 */
+	table := "urr_exact"
+	match := "hdr.gtu_u.teid"
+	action_name := "limit_traffic"
+	counter := "meter_cnt"
+	unit := myutils.GetCounterSpec_Unit(counter, cp.p4info)
+	if unit != config_v1.CounterSpec_BYTES{
+		log.Fatal("ERROR: Counter Unit is only allowed to be \"Bytes\".")
+	}
 	for {
 		for _, id := range teid {
 
-			/* TEID から table entry 生成．helper から逆引き．もっとちゃんとしようとするとデータベースからエントリの json ファイル引っ張ってきて，helper 変数に落とし込んで build entry */
+			// TEID = id のカウンタ値を取得
+			cntentryhelper := myutils.CounterEntryHelper{
+				Counter: counter,
+				Index: id,
+			}
+			cntentry, err := cntentryhelper.BuildCounterEntry(cp.p4info)
+			if err != nil {
+				log.Fatal("ERROR: Counter Entry is NOT found.", err)
+			}
+
+			/* TEID から table entry 生成．helper から逆引き．
+			もっとちゃんとしようとするとデータベースからエントリの json ファイル引っ張ってきて，helper 変数に落とし込んで build entry
 			var entry *v1.TableEntry = nil
 			for _, h :=  range cp.entries.TableEntries {
 				if h.Match[key] == id {
@@ -195,18 +207,11 @@ func MonitorTraffic() {
 				delCh <- id
 				continue
 			}
+			*/
 
 			// READ RPC でカウンタ値を取得
 			entities := []*v1.Entity{}
-			entities = append(entities, 
-				&v1.Entity{ 
-					Entity: &Entity_DirectCounterEntry{ 
-						DirectCounterEntry: &v1.DirectCounterEntry{
-							TableEntry: entry,
-						},
-					},
-				},
-			)
+			entities = append(entities, &v1.Entity{Entity: cntentry})
 			rclient := cp.CreateReadClient(entities)
 			entitiy := (rclient.Recv()).GetEntities()
 			if entitiy == nil {
@@ -223,24 +228,37 @@ func MonitorTraffic() {
 			cnt := counter.Data.ByteCount
 			if limit < cnt {
 				log.Println("INFO: Exceed the given traffic amount of TEID ", id)
+
+				// table entry の生成
+				tentryhelper := myutils.TableEntryHelper{
+					Table: table,
+					Match: map[string]interface{}{match: id},
+					Action_Name: action_name,
+				}
+				tentry, err := tentryhelper.BuildTableEntry(cp.p4info)
+				if err != nil {
+					log.Fatal("ERROR: Cannot build the table entry.", err)
+				}
+				tentry_update := myutils.NewUpdate("INSERT", tentry)
+
+				// direct meter entry の生成
 				dmeterentry := &v1.Entitity{
 					Entitiy: &v1.Entity_DirectMeterEntry{
 						DirectMeterEntry: &v1.DirectMeterEntry{
-							TableEntry: entry,
+							TableEntry: tentry,
 							Config: mconf,
 						}
 					}
 				}
-				update, err := myutils.NewUpdate("INSERT", dmeterentry)
-				if err != nil {
-					/* ERROR 処理 */
-				}
-				updates := []*v1.Update{update}
+				dmeter_update := myutils.NewUpdate("MODIFY", dmeterentry)
+
+				// WRITE RPC
+				updates := []*v1.Update{tentry_update, dmeter_update}
 				_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR") 
 				if err != nil {
 					log.Fatal("ERROR: write RPC has been failed.", err)
 				}
-				log.Println("INFO: Meter Entry is successfully written.")
+				log.Println("INFO: TableEntry and DirectMeterEntry are successfully written.")
 				go Initializer(entry)
 			}
 		}
