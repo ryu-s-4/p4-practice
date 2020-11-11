@@ -46,20 +46,6 @@
       "action_params": {
         "port": 3
       }
-    } ,
-    {
-      "table": "MyIngress.urr_exact",
-      "match": {
-        "hdr.gtp_u.teid": <TEID>,
-      },
-      "action_name": "MyIngress.limit_traffic"
-    },
-    {
-      "table": "MyIngress.urr_exact",
-      "match": {
-        "hdr.gtp_u.teid": <TEID>,
-      },
-      "action_name": "MyIngress.limit_traffic"
     }
   ],    
   "multicast_group_entries" : [   

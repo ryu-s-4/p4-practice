@@ -176,7 +176,7 @@ control MyIngress(inout headers hdr,
     */
 
     const bit<32> CNT_SIZE = 0xffffffff;
-    counter(CNT_SIZE, CounterType.packets) meter_cnt;
+    counter(CNT_SIZE, CounterType.bytes) meter_cnt;
     direct_meter<bit<2>>(MeterType.bytes) limitter;
     
     action drop() {
@@ -193,9 +193,6 @@ control MyIngress(inout headers hdr,
 
     action switching(egressSpec_t port) {
         standard_metadata.egress_spec = port;
-
-        /* TEID 毎にトラヒック量監視 */
-        meter_cnt.count(hdr.gtp_u.teid);
     }
 
     action limit_traffic() {
@@ -244,8 +241,12 @@ control MyIngress(inout headers hdr,
     }
     
     apply {
-        /* 速度制限の有無を確認 */
+
         if (hdr.gtp_u.isValid()) {
+            /* TEID 毎にトラヒック量監視 */
+            meter_cnt.count(hdr.gtp_u.teid);
+
+            /* 速度制限有無を確認 */
             meta.drop_flag = false;
             urr_exact.apply();
             if (meta.drop_flag == true) {

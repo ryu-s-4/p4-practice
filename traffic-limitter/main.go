@@ -301,14 +301,14 @@ func Initializer(entry *v1.Entity_TableEntry) {
 	log.Println("INFO: Counter of TEID ", id, " is initialized")
 	*/
 
-	// MeterEntry 削除
+	// Table Entry (and the corresponding DirectMeterEntry) 削除
 	updates := []*v1.Update{}
 	update := myutils.NewUpdate("DELETE", &v1.Entity{Entity: entry})
 	updates = append(updates, update)
 	_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 	if err != nil {
 		/* ERROR 処理 */
-		log.Fatal("ERROR: Failed to delete DirectMeterEntry.", err)
+		log.Fatal("ERROR: Failed to delete TableEntry.", err)
 	}
 	log.Println("INFO: DirectMeterEntry is successfully deleted. (traffic volume is restored)")
 
