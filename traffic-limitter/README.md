@@ -1,28 +1,52 @@
 # 概要（tentative）
 
 meter を用いてトラヒック速度を制限し，かつ速度制限時にドロップしたトラヒック量をコントロールプレーンに通知する．
-GTP を使う．TEID 毎にトラヒックカウント．P4 プログラムは internal UPF (L2switch) で流量制御をする想定．
+ToR スイッチを想定し，送信元 MAC アドレス毎に流量制限をかける（配下のサーバに流量制限をかけるイメージ）
+但し，制御対象外の MAC アドレスを C/P から登録できる．
 
 やるべきこと
 - meter を使ってトラヒック量制限
-  - 5G UPF の簡易 URR 実装（トラヒック量制限の部分のみ）
-  - トラヒック制限前は threshold は未設定 / トラヒック制限時は theshold を設定
-- CP プログラム改良
-  - direct counter entry 制御
-  - direct meter entry 制御
-    - table entry の逆引き（direct meter が table entry に紐つくため）
-  - 定期的に counter 値を監視するプログラム作成（goroutine）
-  - トラヒック量を超過した TEID に対応する direct meter entry を登録
-  - runtime は table 毎に分けて，TEID と紐づく table entry を探すときに楽にする．
-    - ちゃんとやるときは table 毎にデータベースでエントリ管理し，データベースから json 取得 / json 更新をする．
-  - io.go や helper.go の各関数を具備した構造体変数 ControlPlaneClient を作り，MonitorTraffic にはその構造体変数のポインタを引数として渡す（ControlPlaneClient への write は原則行わない）
-  - DirectMeter の INSER/DELETE はサポートされていない．TEID 毎の Traffic Counter は別途用意し，通過トラヒックについて確認が必要．
-  - [TODO] Error 処理を整理．コンパイル＆デバッグ
-- 解説記事
+  - 送信元 MAC 毎にトラヒックカウント
+  - トラヒック量監視@C/P を行い，閾値を超えたら流量制御用のテーブルにエントリ登録
+
+実装改良箇所
+- DP プログラム（宛先 MAC を見て L2 転送しつつ，送信元 MAC を見てトラヒックカウント）
+  - switching 用のテーブルに加えて，流量制御のテーブルを用意（action は全て check_traffic）
+    - 制限容量を超えたら meterconfig を登録（一定時間経過後に meterconfig reset = nil を入れて MODIFY） 
+- CP プログラム
+  - テーブルエントリを登録する CLI 作成
+    - key, action, action_param を入力
+    - エントリ登録用の channel に IN
+  - テーブルエントリ登録（エントリ登録用の chennel を待ち受け）する goroutine
+    - key と各種情報（action, action_param）を紐つけ（Helper 構造体作成）
+    - Helper 構造体を mongoDB に登録
+    - エントリ登録（Write RPC） 
+  - 流量監視用 の goroutine
+    - 定期的に各テーブルエントリの DirectCounter を取得 
+      -  mongoDB から取得し Helper 構造体変数に落とし込む．
+      -  Helpter 構造体変数から TableEntry を build して DirectCounterEntry を作成し Read RCP で取得．
+    - 制限容量の超過の確認，DirectMeterConfig の登録
+      - 上記で取得した DirectCounter 値を Limit（制限容量）と比較して超過検知
+      - 超過していたら上記で生成した TableEntry から DirectMeterEntry を作成し Write RPC（エントリの modify）
+      - 初期化用の goroutine にこの TableEntry を渡す．
+  - DirectMeterEntry 初期化用の goroutine
+    - 一定時間待機（真剣によるときは終了時刻も渡して，グローバル時刻と比較）
+    - DirectMeterEntry を初期化．MeterConfig を nil にして Write RCP（エントリの modify）　← ちゃんと動くか分からん．
+
+
+- 解説記事（〜11末）
   - 実装内容の概要
     - meter を使った流量制限機能（BMv2 の meter 実装の都合上，動作確認はパケットサイズの制限を使って確認）
   - meter の原理
   - DP 実装
   - CP 実装
+- 解説記事２（〜11末）：備忘もかねて記事作成
+  - mongoDB の概要
+  - golang による mongoDB 操作の基礎
+
+- その他 TODO
+  - vlan-counter の実装解説記事
+    - GO 言語によるテーブルエントリ登録，マルチキャストグループ登録，カウンタ値取得の実装
+    - P4Runtime の仕様と照らし合わせながら
 
 
