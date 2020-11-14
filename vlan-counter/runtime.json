@@ -6,7 +6,14 @@
         "hdr.ethernet.dstAddr": "ff:ff:ff:ff:ff:ff"
       },
       "action_name": "MyIngress.broadcast"
-    },  
+    }, 
+    {
+      "table": "MyIngress.mac_exact",
+      "match": {
+        "hdr.ethernet.dstAddr": "33:33:00:00:00:02"
+      },
+      "action_name": "MyIngress.broadcast"
+    },   
     {  
       "table": "MyIngress.mac_vlan_exact",
       "match": {    
@@ -32,7 +39,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "3a:03:c9:c7:08:2b"
+        "hdr.ethernet.dstAddr": "2a:bf:aa:8f:64:b3"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
@@ -42,11 +49,11 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "ce:94:04:c9:38:73"
+        "hdr.ethernet.dstAddr": "f6:b8:bc:00:df:b7"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
-        "port": 2
+        "port": 1
       }
     },
     {
