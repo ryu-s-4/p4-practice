@@ -10,7 +10,7 @@ ToR スイッチを想定し，送信元 MAC アドレス毎に流量制限を�
   - トラヒック量監視@C/P を行い，閾値を超えたら流量制御用のテーブルにエントリ登録
 
 実装改良箇所
-- DP プログラム（宛先 MAC を見て L2 転送しつつ，送信元 MAC を見てトラヒックカウント）
+- DP プログラム（宛先 MAC を見て L2 転送しつつ，送信元 MAC を見てトラヒックカウント） ★ TODO
   - switching 用のテーブルに加えて，流量制御のテーブルを用意（action は全て check_traffic）
     - 制限容量を超えたら meterconfig を登録（一定時間経過後に meterconfig reset = nil を入れて MODIFY） 
 - CP プログラム
