@@ -58,28 +58,6 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
-header udp_t {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<16> len;
-    bit<16> checksum;
-}
-
-header gtp_u_t {
-    bit<3> ver;
-    bit<1> ptype;
-    bit<1> resv;
-    bit<1> ehflag;
-    bit<1> snflag;
-    bit<1> nnflag;
-    bit<8> mtype;
-    bit<16> mlen;
-    bit<32> teid;
-    bit<16> seq;
-    bit<8> npdu;
-    bit<8> ext_htype;
-}
-
 struct metadata {
     bit<2> color;
     bool drop_flag;
@@ -90,8 +68,6 @@ struct headers {
     arp_t       arp;
     vlan_t      vlan;
     ipv4_t      ipv4;
-    udp_t       udp;
-    gtp_u_t     gtp_u;
 }
 
 /*************************************************************************
@@ -138,19 +114,6 @@ parser MyParser(packet_in packet,
             default : accept;
         }
     }
-
-    state parse_udp {
-        packet.extract(hdr.udp);
-        transition select(hdr.udp.dstPort) {
-            PORT_GTPU : parse_gtp_u;
-            default : accept;
-        }
-    }
-
-    state parse_gtp_u {
-        packet.extract(hdr.gtp_u);
-        transition accept;
-    }
 }
 
 /*************************************************************************
@@ -175,8 +138,7 @@ control MyIngress(inout headers hdr,
     counter(CNT_SIZE, CounterType.packets) traffic_cnt;
     */
 
-    const bit<32> CNT_SIZE = 0xffffffff;
-    counter(CNT_SIZE, CounterType.bytes) meter_cnt;
+    direct_counter(CounterType.bytes) meter_cnt;
     direct_meter<bit<2>>(MeterType.bytes) limitter;
     
     action drop() {
@@ -230,29 +192,20 @@ control MyIngress(inout headers hdr,
         default_action = drop;
     }
 
-    table urr_exact {
-        key = { hdr.gtp_u.teid : exact; }
+    table check_limit {
+        key = { hdr.ethernet.srcAddr: exact; }
         actions = { 
             limit_traffic;
-            NoAction();
+            NoAction;
         }
-        meters = limitter;
-        default_action = NoAction();
+        size = 1024;
+        default_action = NoAction;
+        counters = meter_cnt;
     }
     
     apply {
 
-        if (hdr.gtp_u.isValid()) {
-            /* TEID 毎にトラヒック量監視 */
-            meter_cnt.count(hdr.gtp_u.teid);
-
-            /* 速度制限有無を確認 */
-            meta.drop_flag = false;
-            urr_exact.apply();
-            if (meta.drop_flag == true) {
-                drop();
-            }
-        }
+        check_limit.apply();
 
         if (hdr.vlan.isValid()) {
             if (!mac_vlan_exact.apply().hit) {
