@@ -3,12 +3,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"time"
-	"net"
-	"context"
 
 	"github.com/p4-practice/traffic-limitter/myutils"
 
@@ -210,9 +210,9 @@ func DBManagement(sigCh chan string, errCh chan error) {
 				},
 			}
 			updates := []*v1.Update{}
-			update := myutils.NewUpdate("INSERT", &v1.Entity{ Entity: tableentry})
+			update := myutils.NewUpdate("INSERT", &v1.Entity{Entity: tableentry})
 			updates = append(updates, update)
-			update = myutils.NewUpdate("MODIFY", &v1.Entity{ Entity: directmeterentry})
+			update = myutils.NewUpdate("MODIFY", &v1.Entity{Entity: directmeterentry})
 			updates = append(updates, update)
 			_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 			if err != nil {
@@ -282,7 +282,7 @@ func MonitorTraffic(oid primitive.ObjectID) {
 			}
 		}()
 		collection := db.Database("test").Collection("test")
-		data := collection.FindOne(context.Background(), bson.M{"_id": oid })
+		data := collection.FindOne(context.Background(), bson.M{"_id": oid})
 		if data == nil {
 			log.Println("INFO: TableEntry has been probably deleted from the DB.")
 			break
@@ -337,28 +337,23 @@ func MonitorTraffic(oid primitive.ObjectID) {
 
 			log.Println("INFO: The amount of the traffic exceeds the given volume.")
 
-			// MeterConfig 登録
+			// Action 変更 (NoAction -> limit_traffic)
+			teh.Action_Name = "limit_traffic"
+			tableentry = teh.BuildTableEntry(cp.P4Info)
+
 			updates = []*v1.Update{}
-			directmeterentry_reg := &v1.Entity{
-				Entity: &v1.Entity_DirectMeterEntry{
-					DirectMeterEntry: &v1.DirectMeterEntry{
-						TableEntry: tableentry.TableEntry,
-						Config:     mconf,
-					},
-				},
-			}
-			update = myutils.NewUpdate("MODIFY", directmeterentry_reg)
+			update = myutils.NewUpdate("MODIFY", &v1.Entity{Entity: tableentry})
 			updates = append(updates, update)
 			_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 			if err != nil {
 				/* Error 処理 */
 			}
-			log.Println("INFO: DirectMeterEntry has been successfully modified (limitter is enabled).")
+			log.Println("INFO: TableEntry has been successfully modified (limitter is enabled).")
 
 			// 一定時間が経過するまで速度制限
 			log.Println("INFO: Waiting for the cancellation ...")
 			time.Sleep(time.Second * 10)
-			log.Println("INFO: Traffic Limitation is initialized.")
+			log.Println("INFO: Traffic Limitation is going to be initialized.")
 
 			// カウンタ値をゼロクリア
 
@@ -367,24 +362,18 @@ func MonitorTraffic(oid primitive.ObjectID) {
 				log.Println("INFO: Counter of TEID ", id, " is initialized")
 			*/
 
-			// MeterConfig 初期化
+			// Action 変更 (limit_traffic -> NoAction)
+			teh.Action_Name = "NoAction"
+			tableentry = teh.BuildTableEntry(cp.P4Info)
 			updates = []*v1.Update{}
-			directmeterentry_del := &v1.Entity{
-				Entity: &v1.Entity_DirectMeterEntry{
-					DirectMeterEntry: &v1.DirectMeterEntry{
-						TableEntry:  tableentry.TableEntry,
-						Config: &v1.MeterConfig{},
-					},
-				},
-			}
-			update = myutils.NewUpdate("MODIFY", directmeterentry_del)
+			update = myutils.NewUpdate("MODIFY", &v1.Entity{Entity: tableentry})
 			updates = append(updates, update)
 			_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 			if err != nil {
 				/* ERROR 処理 */
 				log.Fatal("ERROR: Failed to initialize MeterConfig.", err)
 			}
-			log.Println("INFO: DirectMeterEntry has been successfully initialized.")
+			log.Println("INFO: TableEntry has been successfully initialized (limitter is disabled).")
 		}
 	}
 }

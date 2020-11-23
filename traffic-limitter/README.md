@@ -23,10 +23,10 @@ ToR スイッチを想定し，送信元 MAC アドレス毎に流量制限を�
       -  mongoDB から取得し Helper 構造体変数に落とし込む．
       -  mongoDB から取得に失敗したら，その旨を errCh に通知して goroutine　を落とす
       -  Helpter 構造体変数から TableEntry を build して DirectCounterEntry を作成し Read RCP で取得．
-    - 制限容量の超過の確認，DirectMeterConfig の登録
+    - 制限容量の超過の確認，登録 Action の変更．
       - 上記で取得した DirectCounter 値を Limit（制限容量）と比較して超過検知
-      - 超過していたら上記で生成した TableEntry から DirectMeterEntry を作成し Write RPC（エントリの modify）
-      - 一定期間速度制限をかけて，その後解除
+      - 超過していたら上記で生成した TableEntry の Action を NoAction -> limit_traffic に変更し Write   /* TODO */
+      - 一定期間速度制限をかけて，その後 Action を limit_traffic -> NoAction に戻す                     /* TODO */
 
 
 - 解説記事（〜11末）
