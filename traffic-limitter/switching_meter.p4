@@ -110,7 +110,6 @@ parser MyParser(packet_in packet,
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
         transition select(hdr.ipv4.protocol) {
-            IPPROTO_UDP : parse_udp;
             default : accept;
         }
     }
@@ -201,6 +200,8 @@ control MyIngress(inout headers hdr,
         size = 1024;
         default_action = NoAction;
         counters = meter_cnt;
+        meters = limitter;
+
     }
     
     apply {

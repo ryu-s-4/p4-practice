@@ -7,12 +7,21 @@ import (
 	"log"
 	"os"
 	"time"
+	"net"
+	"context"
 
 	"github.com/p4-practice/traffic-limitter/myutils"
 
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
 	"google.golang.org/grpc"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	// "go.mongodb.org/mongo-driver/bson/bsontype"
 )
 
 // Channels for the signaling / error-reporting
@@ -140,7 +149,7 @@ func DBManagement(sigCh chan string, errCh chan error) {
 	}
 
 	defer func() {
-		if err = client.Disconnect(ctx); err != nil {
+		if err = db.Disconnect(ctx); err != nil {
 			log.Println("ERROR: DB has terminated in correctly")
 			errCh <- err
 			return
@@ -148,7 +157,7 @@ func DBManagement(sigCh chan string, errCh chan error) {
 	}()
 
 	// DB collection を取得
-	collection := client.Database("test").Collection("test")
+	collection := db.Database("test").Collection("test")
 
 	// 監視対象の MAC アドレスを追加/削除
 	var cmd string
@@ -190,16 +199,17 @@ func DBManagement(sigCh chan string, errCh chan error) {
 				Match:       map[string]interface{}{match: mac},
 				Action_Name: "NoAction",
 			}
-			tableentry := teh.BuildTableEntry(cp.P4Info)
-			directmeterentry := &v1.Entity{
-				Entity: &v1.Entity_DirectMeterEntry{
-					DirectMeterEntry: &v1.DirectMeterEntry{
-						TableEntry: tableentry.TableEntry,
-						Config:     mconf,
-					},
+			tableentry, err := teh.BuildTableEntry(cp.P4Info)
+			if err != nil {
+				/* Error 処理 */
+			}
+			directmeterentry := &v1.Entity_DirectMeterEntry{
+				DirectMeterEntry: &v1.DirectMeterEntry{
+					TableEntry: tableentry.TableEntry,
+					Config:     mconf,
 				},
 			}
-			updates := []*v1.Update
+			updates := []*v1.Update{}
 			update := myutils.NewUpdate("INSERT", &v1.Entity{ Entity: tableentry})
 			updates = append(updates, update)
 			update = myutils.NewUpdate("MODIFY", &v1.Entity{ Entity: directmeterentry})
@@ -217,7 +227,7 @@ func DBManagement(sigCh chan string, errCh chan error) {
 			}
 
 			/* kick the monitoring goroutine with errCh */
-			go MonitorTraffic(response.InsertedID)
+			go MonitorTraffic(response.InsertedID.(primitive.ObjectID))
 
 		case "del":
 
@@ -241,9 +251,6 @@ func DBManagement(sigCh chan string, errCh chan error) {
 // MonitorTraffic ...
 func MonitorTraffic(oid primitive.ObjectID) {
 
-	wait_time := 10
-	action_name := "limit_traffic"
-
 	// Counter の測定単位の確認（BYTE 単位のみ許容）
 	counter := "meter_cnt"
 	unit, err := myutils.GetCounterSpec_Unit(counter, cp.P4Info)
@@ -258,7 +265,8 @@ func MonitorTraffic(oid primitive.ObjectID) {
 	for {
 
 		// 一定時間待機
-		time.Sleep(time.Second * wait_time)
+		var waiting time.Duration = 10
+		time.Sleep(time.Second * waiting)
 
 		// mongoDB から監視対象のテーブルエントリ取得
 		uri := "mongodb://127.0.0.1:27017"
@@ -269,12 +277,12 @@ func MonitorTraffic(oid primitive.ObjectID) {
 			panic(err)
 		}
 		defer func() {
-			if err = client.Disconnect(ctx); err != nil {
+			if err = db.Disconnect(ctx); err != nil {
 				panic(err)
 			}
 		}()
-		collection := client.Database("test").Collection("test")
-		data := collection.FindOne(context.Background(), bson.D{"_id": oid})
+		collection := db.Database("test").Collection("test")
+		data := collection.FindOne(context.Background(), bson.M{"_id": oid })
 		if data == nil {
 			log.Println("INFO: TableEntry has been probably deleted from the DB.")
 			break
@@ -287,10 +295,15 @@ func MonitorTraffic(oid primitive.ObjectID) {
 		}
 
 		// 監視対象のテーブルエントリのカウンタ値取得
-		tableentry := teh.BuildTableEntry(cp.P4Info)
-		directcounterentry := v1.Entity_DirectCounterEntry{
-			DirectCounterEntry: &v1.DirectCounterEntry{
-				TableEntry: tableentry.TableEntry,
+		tableentry, err := teh.BuildTableEntry(cp.P4Info)
+		if err != nil {
+			/* Error 処理 */
+		}
+		directcounterentry := &v1.Entity{
+			Entity: &v1.Entity_DirectCounterEntry{
+				DirectCounterEntry: &v1.DirectCounterEntry{
+					TableEntry: tableentry.TableEntry,
+				},
 			},
 		}
 		entities := []*v1.Entity{}
@@ -329,7 +342,7 @@ func MonitorTraffic(oid primitive.ObjectID) {
 			directmeterentry_reg := &v1.Entity{
 				Entity: &v1.Entity_DirectMeterEntry{
 					DirectMeterEntry: &v1.DirectMeterEntry{
-						TableEntry: tentry.TableEntry,
+						TableEntry: tableentry.TableEntry,
 						Config:     mconf,
 					},
 				},
@@ -359,8 +372,8 @@ func MonitorTraffic(oid primitive.ObjectID) {
 			directmeterentry_del := &v1.Entity{
 				Entity: &v1.Entity_DirectMeterEntry{
 					DirectMeterEntry: &v1.DirectMeterEntry{
-						TableEntry:  entry.TableEntry,
-						MeterConfig: &v1.MeterConfig{},
+						TableEntry:  tableentry.TableEntry,
+						Config: &v1.MeterConfig{},
 					},
 				},
 			}
