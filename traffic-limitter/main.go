@@ -15,12 +15,12 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Controll channel for register / delete TEID to be monitored.
-var regCh chan int64
-var delCh chan int64
+// Channels for the signaling / error-reporting
+var sigCh chan string
+var errCh chan error
 
+// Control-plane and traffic control information
 var cp myutils.ControlPlaneClient
-
 var limit int64
 var mconf *v1.MeterConfig
 
@@ -36,7 +36,6 @@ func main() {
 	)
 
 	/* コントロールプロセスを初期化 */
-	var cp myutils.ControlPlaneClient
 	cp.DeviceId = deviceid
 	cp.ElectionId = electionid
 
@@ -113,17 +112,49 @@ func main() {
 		Pburst: 250,   // 250 Bytes
 	}
 
-	// Traffic Monitor を行う goroutine を起動
-	regCh = make(chan int64, 10)
-	delCh = make(chan int64, 10)
+	// DB 管理を行う goroutine を起動
+	sigCh = make(chan string, 10)
+	errCh = make(chan error, 10)
+	go DBManagement(sigCh, errCh)
 
-	go MonitorTraffic()
+	// sigCh を監視
+	select {
+	case msg := <-sigCh:
+		log.Println("INFO: DB management has been correctly terminated.", msg)
+	case errmsg := <-errCh:
+		log.Fatal("ERROR: DB management has been unusually terminated.", errmsg)
+	}
+	os.Exit(0)
+}
 
-	// 監視対象 TEID を登録/削除
+// DBManagement ...
+func DBManagement(sigCh chan string, errCh chan error) {
+
+	// DB との接続確立
+	uri := "mongodb://127.0.0.1:27017"
+	ctx := context.Background()
+	db, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+	if err != nil {
+		log.Println("ERROR: DB connection failed.")
+		errCh <- err
+	}
+
+	defer func() {
+		if err = client.Disconnect(ctx); err != nil {
+			log.Println("ERROR: DB has terminated in correctly")
+			errCh <- err
+			return
+		}
+	}()
+
+	// DB collection を取得
+	collection := client.Database("test").Collection("test")
+
+	// 監視対象の MAC アドレスを追加/削除
 	var cmd string
-	var teid int64
+	var mac string
 	fmt.Println("========== Meter Regist/Delete ==========")
-	fmt.Println("$ reg | del | exit  <TEID> ")
+	fmt.Println("$ reg | del | exit  <MAC Addr. to be monitored>")
 	fmt.Println("   - reg : register the TEID to be monitored")
 	fmt.Println("   - del : delete the TEID to be monitored")
 	fmt.Println("   - exit: exit the CLI")
@@ -134,57 +165,67 @@ func main() {
 		if cmd == "exit" {
 			break
 		}
-		fmt.Scanf("%d", &teid)
+		fmt.Scanf("%s", &mac)
+		if _, err := net.ParseMAC(mac); err != nil {
+			log.Println("ERROR: invalid input as MAC addr.", err)
+			continue
+		}
 
 		switch cmd {
 		case "reg":
-			regCh <- teid
-			fmt.Printf("INFO: TEID %d is registered.\n", teid)
+
+			/* check the dupulication */
+			query := bson.M{"match": bson.M{"hdr.ethernet.srcAddr": mac}}
+			if r := collection.FindOne(context.Background(), query); r != nil {
+				fmt.Println("ERROR: the addr. is already registered.")
+				continue
+			}
+
+			/* register the mac to mongoDB */
+			table := "check_limit"
+			match := "hdr.ethernet.srcAddr"
+			teh := myutils.TableEntryHelper{
+				/* action 無しの entry */
+				Table:       table,
+				Match:       map[string]interface{}{match: mac},
+				Action_Name: "NoAction",
+			}
+			response, err := collection.InsertOne(context.Background(), teh)
+			if err != nil {
+				log.Println("ERROR: Inserting the data to DB has been failed.")
+				errCh <- err
+				return
+			}
+
+			/* kick the monitoring goroutine with errCh */
+			go MonitorTraffic(response.InsertedID)
+
 		case "del":
-			delCh <- teid
-			fmt.Printf("INFO: TEID %d is deleted.\n", teid)
+
+			/* delete the mac from mongoDB */
+			query := bson.M{"match": bson.M{"hdr.ethernet.srcAddr": mac}}
+			_, err = collection.DeleteOne(context.Background(), query)
+			if err != nil {
+				log.Println("ERROR: cannot find the mac addr. to be deleted.")
+			}
+
+		case "exit":
+			sigCh <- "exit has been executed."
+			return
+
 		default:
 			fmt.Println("ERROR: invalid input. [reg | del | exit] is only allowed to use.")
 		}
 	}
-	os.Exit(0)
 }
 
-func MonitorTraffic() {
+// MonitorTraffic ...
+func MonitorTraffic(oid primitive.ObjectID) {
 
-	var teid []int64
-
-	// register TEID to be monitored
-	go func() {
-		for {
-			id := <-regCh
-			teid = append(teid, id)
-		}
-	}()
-
-	// delete TEID to be monitored
-	go func() {
-		for {
-			id_int64 := <-delCh
-			id := int(id_int64)
-			for _, i_int64 := range teid {
-				i := int(i_int64)
-				if i == id {
-					if i == 0 {
-						teid = teid[1:]
-					} else if i == (len(teid) - 1) {
-						teid = teid[:(len(teid) - 1)]
-					} else {
-						teid = append(teid[:i], teid[i+1:]...)
-					}
-				}
-			}
-		}
-	}()
-
-	table := "urr_exact"
-	match := "hdr.gtu_u.teid"
+	wait_time := 10
 	action_name := "limit_traffic"
+
+	// Counter の測定単位の確認（BYTE 単位のみ許容）
 	counter := "meter_cnt"
 	unit, err := myutils.GetCounterSpec_Unit(counter, cp.P4Info)
 	if err != nil {
@@ -193,124 +234,125 @@ func MonitorTraffic() {
 	if unit != config_v1.CounterSpec_BYTES {
 		log.Fatal("ERROR: Counter Unit is only allowed to be \"Bytes\".")
 	}
+
+	// トラヒックカウンタの定期監視
 	for {
-		for _, id := range teid {
-
-			// TEID = id のカウンタ値を取得
-			cntentryhelper := myutils.CounterEntryHelper{
-				Counter: counter,
-				Index:   id,
-			}
-			cntentry, err := cntentryhelper.BuildCounterEntry(cp.P4Info)
-			if err != nil {
-				log.Fatal("ERROR: Counter Entry is NOT found.", err)
-			}
-
-			/* TEID から table entry 生成．helper から逆引き．
-			もっとちゃんとしようとするとデータベースからエントリの json ファイル引っ張ってきて，helper 変数に落とし込んで build entry
-			var entry *v1.TableEntry = nil
-			for _, h :=  range cp.entries.TableEntries {
-				if h.Match[key] == id {
-					entry = h.BuildTableEntry(cp.p4info)
-					break
-				}
-			}
-			if (entry == nil) {
-				log.Println("ERROR: TEID ", id, " is NOT included in the table entry.")
-				log.Println("INFO: TEID ", id, " is deleted from teid.")
-				delCh <- id
-				continue
-			}
-			*/
-
-			// READ RPC でカウンタ値を取得
-			entities := []*v1.Entity{}
-			entities = append(entities, &v1.Entity{Entity: cntentry})
-			rclient, err := cp.CreateReadClient(entities)
-			if err != nil {
-				log.Fatal("ERROR: Failed to create ReadClient.", err)
-			}
-			response, err := rclient.Recv()
-			if err != nil {
-				log.Fatal("ERROR: Failed to receive read respose.", err)
-			}
-			entity := response.GetEntities()
-			if entity == nil {
-				log.Println("ERROR: No entity is received from the read client.")
-				continue
-			}
-			counter := entity[0].GetDirectCounterEntry()
-			if counter == nil {
-				log.Println("ERROR: No counter is received from the read client.")
-				continue
-			}
-
-			// 取得した各カウンタ値について超過有無を確認．超過していたら MeterEntry を生成し，initialize 呼び出し（goroutine）
-			cnt := counter.Data.ByteCount
-			if limit < cnt {
-				log.Println("INFO: Exceed the given traffic amount of TEID ", id)
-
-				// table entry の生成
-				tentryhelper := myutils.TableEntryHelper{
-					Table:       table,
-					Match:       map[string]interface{}{match: id},
-					Action_Name: action_name,
-				}
-				tentry, err := tentryhelper.BuildTableEntry(cp.P4Info)
-				if err != nil {
-					log.Fatal("ERROR: Cannot build the table entry.", err)
-				}
-				tentry_update := myutils.NewUpdate("INSERT", &v1.Entity{Entity: tentry})
-
-				// direct meter entry の生成
-				dmeterentry := &v1.Entity{
-					Entity: &v1.Entity_DirectMeterEntry{
-						DirectMeterEntry: &v1.DirectMeterEntry{
-							TableEntry: tentry.TableEntry,
-							Config:     mconf,
-						},
-					},
-				}
-				dmeter_update := myutils.NewUpdate("MODIFY", dmeterentry)
-
-				// WRITE RPC
-				updates := []*v1.Update{tentry_update, dmeter_update}
-				_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
-				if err != nil {
-					log.Fatal("ERROR: write RPC has been failed.", err)
-				}
-				log.Println("INFO: TableEntry and DirectMeterEntry are successfully written.")
-				go Initializer(tentry)
-			}
-		}
 
 		// 一定時間待機
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second * wait_time)
+
+		// mongoDB から監視対象のテーブルエントリ取得
+		uri := "mongodb://127.0.0.1:27017"
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		db, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+		if err != nil {
+			panic(err)
+		}
+		defer func() {
+			if err = client.Disconnect(ctx); err != nil {
+				panic(err)
+			}
+		}()
+		collection := client.Database("test").Collection("test")
+		data := collection.FindOne(context.Background(), bson.D{"_id": oid})
+		if data == nil {
+			log.Println("INFO: TableEntry has been probably deleted from the DB.")
+			break
+		}
+		teh := myutils.TableEntryHelper{}
+		err = data.Decode(&teh)
+		if err != nil {
+			/* Error 処理 */
+			break
+		}
+
+		// 監視対象のテーブルエントリのカウンタ値取得
+		tableentry := teh.BuildTableEntry(cp.P4Info)
+		directcounterentry := v1.Entity_DirectCounterEntry{
+			DirectCounterEntry: &v1.DirectCounterEntry{
+				TableEntry: tableentry.TableEntry,
+			},
+		}
+		entities := []*v1.Entity{}
+		entities = append(entities, directcounterentry)
+		rclient, err := cp.CreateReadClient(entities)
+		if err != nil {
+			log.Fatal("ERROR: Failed to create ReadClient.", err)
+		}
+		response, err := rclient.Recv()
+		if err != nil {
+			log.Fatal("ERROR: Failed to receive read respose.", err)
+		}
+		entity := response.GetEntities()
+		if entity == nil {
+			log.Fatal("ERROR: No entity is received from the read client.")
+		}
+		counter := entity[0].GetDirectCounterEntry()
+		if counter == nil {
+			log.Fatal("ERROR: No counter is received from the read client.")
+		}
+		cntdata := counter.GetData()
+		if cntdata == nil {
+			log.Fatal("ERROR: No counter data is received from the read client.")
+		}
+
+		// 制限容量をオーバーしていたら MeterConfig を登録し Initialization を起動
+		if cntdata.ByteCount > limit {
+
+			var updates []*v1.Update
+			var update *v1.Update
+
+			log.Println("INFO: The amount of the traffic exceeds the given volume.")
+
+			// MeterConfig 登録
+			updates = []*v1.Update{}
+			directmeterentry_reg := &v1.Entity{
+				Entity: &v1.Entity_DirectMeterEntry{
+					DirectMeterEntry: &v1.DirectMeterEntry{
+						TableEntry: tentry.TableEntry,
+						Config:     mconf,
+					},
+				},
+			}
+			update = myutils.NewUpdate("MODIFY", directmeterentry_reg)
+			updates = append(updates, update)
+			_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
+			if err != nil {
+				/* Error 処理 */
+			}
+			log.Println("INFO: DirectMeterEntry has been successfully modified (limitter is enabled).")
+
+			// 一定時間が経過するまで速度制限
+			log.Println("INFO: Waiting for the cancellation ...")
+			time.Sleep(time.Second * 10)
+			log.Println("INFO: Traffic Limitation is initialized.")
+
+			// カウンタ値をゼロクリア
+
+			/*
+				TODO: Bmv2 では Counter の Reset がサポートされていない様子．
+				log.Println("INFO: Counter of TEID ", id, " is initialized")
+			*/
+
+			// MeterConfig 初期化
+			updates = []*v1.Update{}
+			directmeterentry_del := &v1.Entity{
+				Entity: &v1.Entity_DirectMeterEntry{
+					DirectMeterEntry: &v1.DirectMeterEntry{
+						TableEntry:  entry.TableEntry,
+						MeterConfig: &v1.MeterConfig{},
+					},
+				},
+			}
+			update = myutils.NewUpdate("MODIFY", directmeterentry_del)
+			updates = append(updates, update)
+			_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
+			if err != nil {
+				/* ERROR 処理 */
+				log.Fatal("ERROR: Failed to initialize MeterConfig.", err)
+			}
+			log.Println("INFO: DirectMeterEntry has been successfully initialized.")
+		}
 	}
-}
-
-func Initializer(entry *v1.Entity_TableEntry) {
-
-	// 一定時間待機（速度制限）
-	log.Println("INFO: Waiting for the cancellation ... (for 10 seconds)")
-	time.Sleep(time.Second * 10)
-	log.Println("INFO: Traffic Limitation is cancelled.")
-
-	// トラヒック量超過した TEID のカウンタ値をゼロクリア
-	/* TODO: Bmv2 では Counter の Reset がサポートされていない様子．
-	log.Println("INFO: Counter of TEID ", id, " is initialized")
-	*/
-
-	// Table Entry (and the corresponding DirectMeterEntry) 削除
-	updates := []*v1.Update{}
-	update := myutils.NewUpdate("DELETE", &v1.Entity{Entity: entry})
-	updates = append(updates, update)
-	_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
-	if err != nil {
-		/* ERROR 処理 */
-		log.Fatal("ERROR: Failed to delete TableEntry.", err)
-	}
-	log.Println("INFO: DirectMeterEntry is successfully deleted. (traffic volume is restored)")
-
-	return
 }
