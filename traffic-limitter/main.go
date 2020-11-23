@@ -181,7 +181,7 @@ func DBManagement(sigCh chan string, errCh chan error) {
 				continue
 			}
 
-			/* register the mac to mongoDB */
+			/* register the mac to DP / mongoDB */
 			table := "check_limit"
 			match := "hdr.ethernet.srcAddr"
 			teh := myutils.TableEntryHelper{
@@ -190,6 +190,25 @@ func DBManagement(sigCh chan string, errCh chan error) {
 				Match:       map[string]interface{}{match: mac},
 				Action_Name: "NoAction",
 			}
+			tableentry := teh.BuildTableEntry(cp.P4Info)
+			directmeterentry := &v1.Entity{
+				Entity: &v1.Entity_DirectMeterEntry{
+					DirectMeterEntry: &v1.DirectMeterEntry{
+						TableEntry: tableentry.TableEntry,
+						Config:     mconf,
+					},
+				},
+			}
+			updates := []*v1.Update
+			update := myutils.NewUpdate("INSERT", &v1.Entity{ Entity: tableentry})
+			updates = append(updates, update)
+			update = myutils.NewUpdate("MODIFY", &v1.Entity{ Entity: directmeterentry})
+			updates = append(updates, update)
+			_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
+			if err != nil {
+				log.Fatal("ERROR: Failed to insert the TableEntry.", err)
+			}
+
 			response, err := collection.InsertOne(context.Background(), teh)
 			if err != nil {
 				log.Println("ERROR: Inserting the data to DB has been failed.")
