@@ -39,7 +39,7 @@ func main() {
 		deviceid    uint64 = 0
 		electionid         = &v1.Uint128{High: 0, Low: 1}
 		p4infoPath  string = "./p4info.txt"
-		devconfPath string = "./gtptunnel_meter.json"
+		devconfPath string = "./switching_meter.json"
 		runconfPath string = "./runtime.json"
 		err         error
 	)
@@ -113,12 +113,16 @@ func main() {
 	log.Println("INFO: Entries are successfully written.")
 
 	// トラヒック制限に関する情報を登録
-	limit = 10000 // bytes
+	var cir int64 = 500 // 10KBps = 80kbps
+	var cbr int64 = 150   // 500 Bytes
+	var pir int64 = 1000  // 5KBps = 40kbps
+	var pbr int64 = 300   // 250 Bytes
+	limit = 3000 // bytes
 	mconf = &v1.MeterConfig{
-		Cir:    10000, // 10KBps = 80kbps
-		Cburst: 500,   // 500 Bytes
-		Pir:    5000,  // 5KBps = 40kbps
-		Pburst: 250,   // 250 Bytes
+		Cir:    cir,
+		Cburst: cbr,
+		Pir:    pir,  
+		Pburst: pbr,   
 	}
 
 	// DB 管理を行う goroutine を起動
@@ -171,21 +175,30 @@ func DBManagement(sigCh chan string, errCh chan error) {
 	for {
 		fmt.Print("$")
 		fmt.Scanf("%s", &cmd)
-		if cmd == "exit" {
-			break
-		}
-		fmt.Scanf("%s", &mac)
-		if _, err := net.ParseMAC(mac); err != nil {
-			log.Println("ERROR: invalid input as MAC addr.", err)
-			continue
+		if cmd != "exit" {
+			fmt.Scanf("%s", &mac)
+			if _, err := net.ParseMAC(mac); err != nil {
+				log.Println("ERROR: invalid input as MAC addr.", err)
+				continue
+			}
 		}
 
 		switch cmd {
 		case "reg":
 
-			/* check the dupulication */
-			query := bson.M{"match": bson.M{"hdr.ethernet.srcAddr": mac}}
-			if r := collection.FindOne(context.Background(), query); r != nil {
+			/* check the dupulication */			
+			query := bson.M{"match": bson.M{ "hdr.ethernet.srcAddr": mac}}
+			if r := collection.FindOne(context.Background(), query); r.Err() == nil {
+				
+				/* DEBUG */
+				cur,_ := collection.Find(context.Background(), bson.D{})
+				defer cur.Close(context.Background())
+				for cur.Next(context.Background()) {
+					log.Println("INFO: the following object has been retrived.")
+					fmt.Printf("%v\n", cur.Current)
+				}
+				/* DEBUG */
+
 				fmt.Println("ERROR: the addr. is already registered.")
 				continue
 			}
@@ -201,7 +214,8 @@ func DBManagement(sigCh chan string, errCh chan error) {
 			}
 			tableentry, err := teh.BuildTableEntry(cp.P4Info)
 			if err != nil {
-				/* Error 処理 */
+				errCh <- err
+				return
 			}
 			directmeterentry := &v1.Entity_DirectMeterEntry{
 				DirectMeterEntry: &v1.DirectMeterEntry{
@@ -253,7 +267,7 @@ func MonitorTraffic(oid primitive.ObjectID) {
 
 	// Counter の測定単位の確認（BYTE 単位のみ許容）
 	counter := "meter_cnt"
-	unit, err := myutils.GetCounterSpec_Unit(counter, cp.P4Info)
+	unit, err := myutils.GetCounterSpec_Unit(counter, cp.P4Info, true)
 	if err != nil {
 		log.Fatal("ERROR: Failed to get CounterSpec.", err)
 	}
@@ -290,14 +304,14 @@ func MonitorTraffic(oid primitive.ObjectID) {
 		teh := myutils.TableEntryHelper{}
 		err = data.Decode(&teh)
 		if err != nil {
-			/* Error 処理 */
+			log.Fatal("ERROR: Failed to decode table entry from DB.", err)
 			break
 		}
 
 		// 監視対象のテーブルエントリのカウンタ値取得
 		tableentry, err := teh.BuildTableEntry(cp.P4Info)
 		if err != nil {
-			/* Error 処理 */
+			log.Fatal("ERROR: Failed to build table entry.", err)
 		}
 		directcounterentry := &v1.Entity{
 			Entity: &v1.Entity_DirectCounterEntry{
@@ -328,6 +342,7 @@ func MonitorTraffic(oid primitive.ObjectID) {
 		if cntdata == nil {
 			log.Fatal("ERROR: No counter data is received from the read client.")
 		}
+		log.Println("INFO: Counter is", cntdata.ByteCount)
 
 		// 制限容量をオーバーしていたら MeterConfig を登録し Initialization を起動
 		if cntdata.ByteCount > limit {
@@ -339,14 +354,16 @@ func MonitorTraffic(oid primitive.ObjectID) {
 
 			// Action 変更 (NoAction -> limit_traffic)
 			teh.Action_Name = "limit_traffic"
-			tableentry = teh.BuildTableEntry(cp.P4Info)
-
+			tableentry, err = teh.BuildTableEntry(cp.P4Info)
+			if err != nil {
+				log.Fatal("ERROR: Failed to build table entry.", err)
+			}
 			updates = []*v1.Update{}
 			update = myutils.NewUpdate("MODIFY", &v1.Entity{Entity: tableentry})
 			updates = append(updates, update)
 			_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 			if err != nil {
-				/* Error 処理 */
+				log.Fatal("ERROR: Failed to modify the table entry (enable traffic limit).", err)
 			}
 			log.Println("INFO: TableEntry has been successfully modified (limitter is enabled).")
 
@@ -364,13 +381,15 @@ func MonitorTraffic(oid primitive.ObjectID) {
 
 			// Action 変更 (limit_traffic -> NoAction)
 			teh.Action_Name = "NoAction"
-			tableentry = teh.BuildTableEntry(cp.P4Info)
+			tableentry, err = teh.BuildTableEntry(cp.P4Info)
+			if err != nil {
+				log.Fatal("ERROR: Failed to build table entry.", err)
+			}
 			updates = []*v1.Update{}
 			update = myutils.NewUpdate("MODIFY", &v1.Entity{Entity: tableentry})
 			updates = append(updates, update)
 			_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 			if err != nil {
-				/* ERROR 処理 */
 				log.Fatal("ERROR: Failed to initialize MeterConfig.", err)
 			}
 			log.Println("INFO: TableEntry has been successfully initialized (limitter is disabled).")

@@ -94,7 +94,7 @@ func (h *TableEntryHelper) BuildTableEntry(p *config_v1.P4Info) (*v1.Entity_Tabl
 	var flag bool
 	flag = false
 	for _, t := range p.Tables {
-		if t.Preamble.Name == h.Table {
+		if (t.Preamble.Name == h.Table) || (t.Preamble.Alias == h.Table) {
 			table = t
 			flag = true
 			break
@@ -201,14 +201,14 @@ func (h *TableEntryHelper) BuildTableEntry(p *config_v1.P4Info) (*v1.Entity_Tabl
 	var action *config_v1.Action
 	flag = false
 	for _, a := range p.Actions {
-		if a.Preamble.Name == h.Action_Name {
+		if (a.Preamble.Name == h.Action_Name) || (a.Preamble.Alias == h.Action_Name) {
 			action = a
 			flag = true
 			break
 		}
 	}
 	if flag == false {
-		err := fmt.Errorf("cannot fine action")
+		err := fmt.Errorf("cannot find action")
 		return nil, err
 	}
 
@@ -351,24 +351,45 @@ func (h *CounterEntryHelper) BuildCounterEntry(p *config_v1.P4Info) (*v1.Entity_
 }
 
 // GetCounterSpec_Unit gets the unit of "counter" instance.
-func GetCounterSpec_Unit(counter string, p *config_v1.P4Info) (config_v1.CounterSpec_Unit, error) {
+func GetCounterSpec_Unit(counter string, p *config_v1.P4Info, direct bool) (config_v1.CounterSpec_Unit, error) {
 
 	var flag bool
-	var cnt *config_v1.Counter
-	flag = false
-	for _, c := range p.Counters {
-		if (c.Preamble.Name == counter) || (c.Preamble.Alias == counter) {
-			cnt = c
-			flag = true
-			break
+	var cnt interface{}
+
+	if direct {
+		flag = false
+		for _, c := range p.DirectCounters {
+			if (c.Preamble.Name == counter) || (c.Preamble.Alias == counter) {
+				cnt =  c
+				flag = true
+				break
+			}
+		}
+	} else {
+		flag = false
+		for _, c := range p.Counters {
+			if (c.Preamble.Name == counter) || (c.Preamble.Alias == counter) {
+				cnt = c
+				flag = true
+				break
+			}
 		}
 	}
+
 	if flag == false {
 		err := fmt.Errorf("cannot find counter instance")
 		return config_v1.CounterSpec_UNSPECIFIED, err
 	}
 
-	return cnt.Spec.Unit, nil
+	switch cnt.(type) {
+	case *config_v1.DirectCounter:
+		return cnt.(*config_v1.DirectCounter).Spec.Unit, nil
+	case *config_v1.Counter:
+		return cnt.(*config_v1.Counter).Spec.Unit, nil
+	default:
+		err := fmt.Errorf("unknown type.")
+		return config_v1.CounterSpec_UNSPECIFIED, err
+	}
 }
 
 // NewUpdate creates new "Update" instance.

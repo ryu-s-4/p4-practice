@@ -297,7 +297,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "switching_meter.p4",
-        "line" : 270,
+        "line" : 274,
         "column" : 8,
         "source_fragment" : "MyDeparser"
       },
@@ -344,7 +344,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "switching_meter.p4",
-        "line" : 248,
+        "line" : 252,
         "column" : 1,
         "source_fragment" : "update_checksum( ..."
       },
@@ -450,8 +450,30 @@
       ]
     },
     {
-      "name" : "MyIngress.broadcast",
+      "name" : "MyIngress.drop",
       "id" : 3,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "mark_to_drop",
+          "parameters" : [
+            {
+              "type" : "header",
+              "value" : "standard_metadata"
+            }
+          ],
+          "source_info" : {
+            "filename" : "switching_meter.p4",
+            "line" : 144,
+            "column" : 8,
+            "source_fragment" : "mark_to_drop(standard_metadata)"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "MyIngress.broadcast",
+      "id" : 4,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -477,7 +499,7 @@
     },
     {
       "name" : "MyIngress.broadcast_vlan",
-      "id" : 4,
+      "id" : 5,
       "runtime_data" : [
         {
           "name" : "grp_id",
@@ -502,37 +524,6 @@
             "line" : 152,
             "column" : 8,
             "source_fragment" : "standard_metadata.mcast_grp = grp_id"
-          }
-        }
-      ]
-    },
-    {
-      "name" : "MyIngress.switching",
-      "id" : 5,
-      "runtime_data" : [
-        {
-          "name" : "port",
-          "bitwidth" : 9
-        }
-      ],
-      "primitives" : [
-        {
-          "op" : "assign",
-          "parameters" : [
-            {
-              "type" : "field",
-              "value" : ["standard_metadata", "egress_spec"]
-            },
-            {
-              "type" : "runtime_data",
-              "value" : 0
-            }
-          ],
-          "source_info" : {
-            "filename" : "switching_meter.p4",
-            "line" : 156,
-            "column" : 8,
-            "source_fragment" : "standard_metadata.egress_spec = port"
           }
         }
       ]
@@ -569,8 +560,39 @@
       ]
     },
     {
-      "name" : "MyIngress.limit_traffic",
+      "name" : "MyIngress.switching",
       "id" : 7,
+      "runtime_data" : [
+        {
+          "name" : "port",
+          "bitwidth" : 9
+        }
+      ],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "egress_spec"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "switching_meter.p4",
+            "line" : 156,
+            "column" : 8,
+            "source_fragment" : "standard_metadata.egress_spec = port"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "MyIngress.limit_traffic",
+      "id" : 8,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -636,8 +658,44 @@
       ]
     },
     {
+      "name" : "switching_meter209",
+      "id" : 9,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "metadata.drop_flag"]
+            },
+            {
+              "type" : "expression",
+              "value" : {
+                "type" : "expression",
+                "value" : {
+                  "op" : "b2d",
+                  "left" : null,
+                  "right" : {
+                    "type" : "bool",
+                    "value" : false
+                  }
+                }
+              }
+            }
+          ],
+          "source_info" : {
+            "filename" : "switching_meter.p4",
+            "line" : 209,
+            "column" : 8,
+            "source_fragment" : "meta.drop_flag = false"
+          }
+        }
+      ]
+    },
+    {
       "name" : "MyEgress.drop",
-      "id" : 8,
+      "id" : 10,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -650,7 +708,7 @@
           ],
           "source_info" : {
             "filename" : "switching_meter.p4",
-            "line" : 232,
+            "line" : 236,
             "column" : 8,
             "source_fragment" : "mark_to_drop(standard_metadata)"
           }
@@ -668,11 +726,40 @@
         "column" : 8,
         "source_fragment" : "MyIngress"
       },
-      "init_table" : "MyIngress.check_limit",
+      "init_table" : "tbl_switching_meter209",
       "tables" : [
         {
-          "name" : "MyIngress.check_limit",
+          "name" : "tbl_switching_meter209",
           "id" : 0,
+          "source_info" : {
+            "filename" : "switching_meter.p4",
+            "line" : 209,
+            "column" : 23,
+            "source_fragment" : "="
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [9],
+          "actions" : ["switching_meter209"],
+          "base_default_next" : "MyIngress.check_limit",
+          "next_tables" : {
+            "switching_meter209" : "MyIngress.check_limit"
+          },
+          "default_entry" : {
+            "action_id" : 9,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "MyIngress.check_limit",
+          "id" : 1,
           "source_info" : {
             "filename" : "switching_meter.p4",
             "line" : 194,
@@ -693,12 +780,12 @@
           "with_counters" : true,
           "support_timeout" : false,
           "direct_meters" : "MyIngress.limitter",
-          "action_ids" : [7, 0],
+          "action_ids" : [8, 0],
           "actions" : ["MyIngress.limit_traffic", "NoAction"],
-          "base_default_next" : "node_3",
+          "base_default_next" : "node_4",
           "next_tables" : {
-            "MyIngress.limit_traffic" : "node_3",
-            "NoAction" : "node_3"
+            "MyIngress.limit_traffic" : "node_4",
+            "NoAction" : "node_4"
           },
           "default_entry" : {
             "action_id" : 0,
@@ -708,8 +795,37 @@
           }
         },
         {
+          "name" : "tbl_drop",
+          "id" : 2,
+          "source_info" : {
+            "filename" : "switching_meter.p4",
+            "line" : 212,
+            "column" : 12,
+            "source_fragment" : "drop()"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [3],
+          "actions" : ["MyIngress.drop"],
+          "base_default_next" : null,
+          "next_tables" : {
+            "MyIngress.drop" : null
+          },
+          "default_entry" : {
+            "action_id" : 3,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
           "name" : "MyIngress.mac_vlan_exact",
-          "id" : 1,
+          "id" : 3,
           "source_info" : {
             "filename" : "switching_meter.p4",
             "line" : 180,
@@ -736,7 +852,7 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [6, 4, 2],
+          "action_ids" : [7, 5, 2],
           "actions" : ["MyIngress.switching", "MyIngress.broadcast_vlan", "MyIngress.drop"],
           "base_default_next" : null,
           "next_tables" : {
@@ -752,7 +868,7 @@
         },
         {
           "name" : "MyIngress.mac_exact",
-          "id" : 2,
+          "id" : 4,
           "source_info" : {
             "filename" : "switching_meter.p4",
             "line" : 167,
@@ -773,7 +889,7 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [5, 3, 1],
+          "action_ids" : [6, 4, 1],
           "actions" : ["MyIngress.switching", "MyIngress.broadcast", "MyIngress.drop"],
           "base_default_next" : null,
           "next_tables" : {
@@ -791,12 +907,45 @@
       "action_profiles" : [],
       "conditionals" : [
         {
-          "name" : "node_3",
+          "name" : "node_4",
           "id" : 0,
           "source_info" : {
             "filename" : "switching_meter.p4",
             "line" : 211,
             "column" : 12,
+            "source_fragment" : "meta.drop_flag == true"
+          },
+          "expression" : {
+            "type" : "expression",
+            "value" : {
+              "op" : "==",
+              "left" : {
+                "type" : "expression",
+                "value" : {
+                  "op" : "d2b",
+                  "left" : null,
+                  "right" : {
+                    "type" : "field",
+                    "value" : ["scalars", "metadata.drop_flag"]
+                  }
+                }
+              },
+              "right" : {
+                "type" : "bool",
+                "value" : true
+              }
+            }
+          },
+          "true_next" : "tbl_drop",
+          "false_next" : "node_6"
+        },
+        {
+          "name" : "node_6",
+          "id" : 1,
+          "source_info" : {
+            "filename" : "switching_meter.p4",
+            "line" : 214,
+            "column" : 16,
             "source_fragment" : "hdr.vlan.isValid()"
           },
           "expression" : {
@@ -820,18 +969,18 @@
       "id" : 1,
       "source_info" : {
         "filename" : "switching_meter.p4",
-        "line" : 227,
+        "line" : 231,
         "column" : 8,
         "source_fragment" : "MyEgress"
       },
-      "init_table" : "node_8",
+      "init_table" : "node_11",
       "tables" : [
         {
-          "name" : "tbl_drop",
-          "id" : 3,
+          "name" : "tbl_drop_0",
+          "id" : 5,
           "source_info" : {
             "filename" : "switching_meter.p4",
-            "line" : 237,
+            "line" : 241,
             "column" : 12,
             "source_fragment" : "drop()"
           },
@@ -842,14 +991,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [8],
+          "action_ids" : [10],
           "actions" : ["MyEgress.drop"],
           "base_default_next" : null,
           "next_tables" : {
             "MyEgress.drop" : null
           },
           "default_entry" : {
-            "action_id" : 8,
+            "action_id" : 10,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -859,11 +1008,11 @@
       "action_profiles" : [],
       "conditionals" : [
         {
-          "name" : "node_8",
-          "id" : 1,
+          "name" : "node_11",
+          "id" : 2,
           "source_info" : {
             "filename" : "switching_meter.p4",
-            "line" : 236,
+            "line" : 240,
             "column" : 12,
             "source_fragment" : "standard_metadata.egress_port == standard_metadata.ingress_port"
           },
@@ -882,7 +1031,7 @@
             }
           },
           "false_next" : null,
-          "true_next" : "tbl_drop"
+          "true_next" : "tbl_drop_0"
         }
       ]
     }
@@ -893,7 +1042,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "switching_meter.p4",
-        "line" : 248,
+        "line" : 252,
         "column" : 1,
         "source_fragment" : "update_checksum( ..."
       },

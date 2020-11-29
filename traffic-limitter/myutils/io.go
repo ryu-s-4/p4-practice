@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	// "github.com/pkg/errors"
 	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"
@@ -27,6 +28,7 @@ type ControlPlaneClient struct {
 func (cp *ControlPlaneClient) InitConfig(p4infoPath string, devconfPath string, runconfPath string) error {
 
 	// P4Info
+	cp.P4Info = &config_v1.P4Info{}
 	p4infoBytes, err := ioutil.ReadFile(p4infoPath)
 	if err != nil {
 		return err
@@ -47,6 +49,7 @@ func (cp *ControlPlaneClient) InitConfig(p4infoPath string, devconfPath string, 
 	}
 
 	// EntryHelper
+	cp.Entries = &EntryHelper{}
 	runtime, err := ioutil.ReadFile(runconfPath)
 	if err != nil {
 		return err

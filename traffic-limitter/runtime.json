@@ -10,7 +10,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "host1's MAC address"
+        "hdr.ethernet.dstAddr": "a2:ab:54:1e:1b:ee"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
@@ -20,7 +20,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "host3's MAC address"
+        "hdr.ethernet.dstAddr": "c6:01:a2:b9:2b:c5"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
@@ -30,7 +30,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "host5's MAC address"
+        "hdr.ethernet.dstAddr": "6e:fd:a0:c5:0a:2c"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
@@ -40,7 +40,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "host7's MAC address"
+        "hdr.ethernet.dstAddr": "56:5e:ba:d2:57:e0"
       },
       "action_name": "MyIngress.switching",
       "action_params": {

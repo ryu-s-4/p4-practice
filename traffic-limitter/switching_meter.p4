@@ -206,15 +206,19 @@ control MyIngress(inout headers hdr,
     
     apply {
 
+        meta.drop_flag = false;
         check_limit.apply();
-
-        if (hdr.vlan.isValid()) {
-            if (!mac_vlan_exact.apply().hit) {
-                /* TODO: MAC learning */
-            }
+        if (meta.drop_flag == true) {
+            drop();
         } else {
-            if (!mac_exact.apply().hit) {
-                /* TODO: MAC learning */
+            if (hdr.vlan.isValid()) {
+                if (!mac_vlan_exact.apply().hit) {
+                    /* TODO: MAC learning */
+                }
+            } else {
+                if (!mac_exact.apply().hit) {
+                    /* TODO: MAC learning */
+                }
             }
         }
     }
