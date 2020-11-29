@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	// "github.com/pkg/errors"
 	"github.com/golang/protobuf/proto"
 	config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	v1 "github.com/p4lang/p4runtime/go/p4/v1"

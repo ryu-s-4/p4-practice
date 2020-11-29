@@ -1,19 +1,3 @@
-/* supported functionalities
- - BUILD
- 	-table entry (with match field as follows)
-		 - exact match
-	- multicast group entry
-	- counter entry
- - GET
- 	- action parameters (with value type as follows)
-		- float64
-		- MAC addr.
-		- IPv4/v6 addr.
-	- counter unit
- - CREATE
-	- update
-*/
-
 package myutils
 
 import (
@@ -360,7 +344,7 @@ func GetCounterSpec_Unit(counter string, p *config_v1.P4Info, direct bool) (conf
 		flag = false
 		for _, c := range p.DirectCounters {
 			if (c.Preamble.Name == counter) || (c.Preamble.Alias == counter) {
-				cnt =  c
+				cnt = c
 				flag = true
 				break
 			}
