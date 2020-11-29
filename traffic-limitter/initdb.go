@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
+	// "encoding/json"
+	// "fmt"
+	// "io/ioutil"
 	"log"
 	"time"
 	// "net"
@@ -13,8 +13,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/bsontype"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	// "go.mongodb.org/mongo-driver/bson/bsontype"
+	// "go.mongodb.org/mongo-driver/bson/primitive"
 	// "go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
@@ -99,7 +99,13 @@ func main() {
 
 	/* delete all objects. */
 	collection := client.Database("test").Collection("test")
+	res, err := collection.DeleteMany(context.Background(), bson.D{})
+	if err != nil {
+		log.Fatal("ERROR: failed to delete the entries.")
+	}
+	log.Println("INFO: deleted", res.DeletedCount, "documents")
 
+	/*
 	cur, err := collection.Find(context.Background(), bson.D{})
 	if err != nil {
 		log.Fatal(err)
@@ -119,6 +125,7 @@ func main() {
 			default:
 				log.Fatal("ERROR: retrieved document is invalid type.")
 			}
+			break
 		}
 		res_delete, err := collection.DeleteOne(context.Background(), bson.M{"_id": id})
 		if err != nil {
@@ -126,5 +133,6 @@ func main() {
 		}
 		log.Printf("INFO: %d documents has been deleted.", res_delete.DeletedCount)
 	}
-	fmt.Println("Successfully done")
+	*/
+	log.Println("INFO: successfully done")
 }

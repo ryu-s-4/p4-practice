@@ -25,7 +25,7 @@ var sigCh chan string
 var errCh chan error
 var cp myutils.ControlPlaneClient
 var limit int64
-var mconf *v1.MeterConfig
+var meterconf *v1.MeterConfig
 
 func main() {
 
@@ -126,9 +126,9 @@ func main() {
 	/* DBmanagement の終了待機 */
 	select {
 	case msg := <-sigCh:
-		log.Println("INFO: DB management has been correctly terminated.", msg)
+		log.Println("INFO: DB management has been correctly terminated. ", msg)
 	case errmsg := <-errCh:
-		log.Fatal("ERROR: DB management has been unusually terminated.", errmsg)
+		log.Fatal("ERROR: DB management has been unusually terminated. ", errmsg)
 	}
 	os.Exit(0)
 }
@@ -203,7 +203,7 @@ func DBManagement(sigCh chan string, errCh chan error) {
 			directmeterentry := &v1.Entity_DirectMeterEntry{
 				DirectMeterEntry: &v1.DirectMeterEntry{
 					TableEntry: tableentry.TableEntry,
-					Config:     mconf,
+					Config:     meterconf,
 				},
 			}
 			updates := []*v1.Update{}
@@ -228,7 +228,7 @@ func DBManagement(sigCh chan string, errCh chan error) {
 			log.Println("INFO: successfully registerd the table entry.")
 
 			/* トラヒック監視用の goroutine を起動 */
-			log.Println("INFO: kick the monitoring goroutine for ", mac)
+			log.Println("INFO: kick the monitoring goroutine for", mac)
 			go MonitorTraffic(response.InsertedID.(primitive.ObjectID))
 
 		case "del":

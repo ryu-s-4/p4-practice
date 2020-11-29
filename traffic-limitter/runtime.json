@@ -10,7 +10,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "a2:ab:54:1e:1b:ee"
+        "hdr.ethernet.dstAddr": "b6:5b:d1:de:07:25"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
@@ -20,7 +20,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "c6:01:a2:b9:2b:c5"
+        "hdr.ethernet.dstAddr": "56:db:e7:15:82:0e"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
@@ -30,7 +30,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "6e:fd:a0:c5:0a:2c"
+        "hdr.ethernet.dstAddr": "32:15:2c:ec:3e:3e"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
@@ -40,7 +40,7 @@
     {
       "table": "MyIngress.mac_exact",
       "match": {
-        "hdr.ethernet.dstAddr": "56:5e:ba:d2:57:e0"
+        "hdr.ethernet.dstAddr": "66:e8:f7:47:e0:f7"
       },
       "action_name": "MyIngress.switching",
       "action_params": {
