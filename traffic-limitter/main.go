@@ -117,7 +117,7 @@ func main() {
 	var cbr int64 = 150   // 500 Bytes
 	var pir int64 = 1000  // 5KBps = 40kbps
 	var pbr int64 = 300   // 250 Bytes
-	limit = 3000 // bytes
+	limit = 10000 // bytes
 	mconf = &v1.MeterConfig{
 		Cir:    cir,
 		Cburst: cbr,
@@ -167,13 +167,12 @@ func DBManagement(sigCh chan string, errCh chan error) {
 	var cmd string
 	var mac string
 	fmt.Println("========== Meter Regist/Delete ==========")
-	fmt.Println("$ reg | del | exit  <MAC Addr. to be monitored>")
+	fmt.Println(" [reg | del | exit]  <MAC Addr. to be monitored>")
 	fmt.Println("   - reg : register the TEID to be monitored")
 	fmt.Println("   - del : delete the TEID to be monitored")
 	fmt.Println("   - exit: exit the CLI")
 	fmt.Println("=========================================")
 	for {
-		fmt.Print("$")
 		fmt.Scanf("%s", &cmd)
 		if cmd != "exit" {
 			fmt.Scanf("%s", &mac)
@@ -188,7 +187,8 @@ func DBManagement(sigCh chan string, errCh chan error) {
 
 			/* check the dupulication */			
 			query := bson.M{"match": bson.M{ "hdr.ethernet.srcAddr": mac}}
-			if r := collection.FindOne(context.Background(), query); r.Err() == nil {
+			r := collection.FindOne(context.Background(), query)
+			if r.Err() == nil {
 				
 				/* DEBUG */
 				cur,_ := collection.Find(context.Background(), bson.D{})
@@ -239,18 +239,43 @@ func DBManagement(sigCh chan string, errCh chan error) {
 				errCh <- err
 				return
 			}
+			log.Println("INFO: Table Entry has been successfully registerd.")
 
 			/* kick the monitoring goroutine with errCh */
 			go MonitorTraffic(response.InsertedID.(primitive.ObjectID))
 
 		case "del":
 
-			/* delete the mac from mongoDB */
+			/* delte the table entry */
 			query := bson.M{"match": bson.M{"hdr.ethernet.srcAddr": mac}}
+			r := collection.FindOne(context.Background(), query)
+			if r.Err() != nil {
+				fmt.Println("ERROR: the addr. is NOT registered yet.")
+				continue
+			}
+			teh := myutils.TableEntryHelper{}
+			err = r.Decode(&teh)
+			if err != nil {
+				log.Fatal("ERROR: Failed to decode table entry from DB.", err)
+			}
+			tableentry, err := teh.BuildTableEntry(cp.P4Info)
+			if err != nil {
+				log.Fatal("ERROR: Failed to build table entry.", err)
+			}
+			updates := []*v1.Update{}
+			update := myutils.NewUpdate("DELETE", &v1.Entity{Entity: tableentry})
+			updates = append(updates, update)
+			_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
+			if err != nil {
+				log.Fatal("ERROR: Failed to insert the TableEntry.", err)
+			}
+
+			/* delete the table entry from DB */
 			_, err = collection.DeleteOne(context.Background(), query)
 			if err != nil {
 				log.Println("ERROR: cannot find the mac addr. to be deleted.")
 			}
+			log.Println("INFO: Table Entry has been sucessfully deleted.")			
 
 		case "exit":
 			sigCh <- "exit has been executed."
@@ -297,7 +322,7 @@ func MonitorTraffic(oid primitive.ObjectID) {
 		}()
 		collection := db.Database("test").Collection("test")
 		data := collection.FindOne(context.Background(), bson.M{"_id": oid})
-		if data == nil {
+		if data.Err() != nil {
 			log.Println("INFO: TableEntry has been probably deleted from the DB.")
 			break
 		}
@@ -378,6 +403,24 @@ func MonitorTraffic(oid primitive.ObjectID) {
 				TODO: Bmv2 では Counter の Reset がサポートされていない様子．
 				log.Println("INFO: Counter of TEID ", id, " is initialized")
 			*/
+			var zero_int64 int64 = 0
+			dce := &v1.Entity_DirectCounterEntry{
+				DirectCounterEntry: &v1.DirectCounterEntry{
+					TableEntry: tableentry.TableEntry,
+					Data: &v1.CounterData{
+						ByteCount: zero_int64,
+						PacketCount: zero_int64,
+					},
+				},
+			}
+			updates = []*v1.Update{}
+			update = myutils.NewUpdate("MODIFY", &v1.Entity{Entity: dce})
+			updates = append(updates, update)
+			_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
+			if err != nil {
+				log.Fatal("ERROR: Failed to clear direct counter.", err)
+			}
+			log.Println("INFO: Direct Counter is successfully cleared.")
 
 			// Action 変更 (limit_traffic -> NoAction)
 			teh.Action_Name = "NoAction"
@@ -388,11 +431,13 @@ func MonitorTraffic(oid primitive.ObjectID) {
 			updates = []*v1.Update{}
 			update = myutils.NewUpdate("MODIFY", &v1.Entity{Entity: tableentry})
 			updates = append(updates, update)
-			_, err := cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
+			_, err = cp.SendWriteRequest(updates, "CONTINUE_ON_ERROR")
 			if err != nil {
 				log.Fatal("ERROR: Failed to initialize MeterConfig.", err)
 			}
 			log.Println("INFO: TableEntry has been successfully initialized (limitter is disabled).")
 		}
 	}
+	log.Println("INFO: Traffic Monitoring has been terminated.")
+	return
 }
