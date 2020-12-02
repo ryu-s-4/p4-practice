@@ -1,19 +1,3 @@
-/* supported functionalities
- - BUILD
- 	-table entry (with match field as follows)
-		 - exact match
-	- multicast group entry
-	- counter entry
- - GET
- 	- action parameters (with value type as follows)
-		- float64
-		- MAC addr.
-		- IPv4/v6 addr.
-	- counter unit
- - CREATE
-	- update
-*/
-
 package myutils
 
 import (
@@ -87,14 +71,14 @@ type DigestEntryHelper struct {
 }
 
 // BuildTableEntry creates TableEntry in the form of Entity_TableEntry.
-func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableEntry, error) {
+func (h *TableEntryHelper) BuildTableEntry(p *config_v1.P4Info) (*v1.Entity_TableEntry, error) {
 
 	// find "Table" instance that matches h.Table (table name)
 	var table *config_v1.Table
 	var flag bool
 	flag = false
 	for _, t := range p.Tables {
-		if t.Preamble.Name == h.Table {
+		if (t.Preamble.Name == h.Table) || (t.Preamble.Alias == h.Table) {
 			table = t
 			flag = true
 			break
@@ -201,14 +185,14 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 	var action *config_v1.Action
 	flag = false
 	for _, a := range p.Actions {
-		if a.Preamble.Name == h.Action_Name {
+		if (a.Preamble.Name == h.Action_Name) || (a.Preamble.Alias == h.Action_Name) {
 			action = a
 			flag = true
 			break
 		}
 	}
 	if flag == false {
-		err := fmt.Errorf("cannot fine action")
+		err := fmt.Errorf("cannot find action")
 		return nil, err
 	}
 
@@ -299,7 +283,7 @@ func GetParam(value interface{}, width int32) ([]byte, error) {
 }
 
 // BuildMulticastGroupEntry creates MulticastGroupEntry in the form of Entity_PacketRelicationEngineEntry.
-func BuildMulticastGroupEntry(h *MulticastGroupEntryHelper) (*v1.Entity_PacketReplicationEngineEntry, error) {
+func (h *MulticastGroupEntryHelper) BuildMulticastGroupEntry() (*v1.Entity_PacketReplicationEngineEntry, error) {
 
 	// create "Replica" instances from the helper.
 	replicas := make([]*v1.Replica, 0)
@@ -321,7 +305,7 @@ func BuildMulticastGroupEntry(h *MulticastGroupEntryHelper) (*v1.Entity_PacketRe
 }
 
 // BuildCounterEntry builds
-func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_CounterEntry, error) {
+func (h *CounterEntryHelper) BuildCounterEntry(p *config_v1.P4Info) (*v1.Entity_CounterEntry, error) {
 
 	// find "Counter" instance that matches h.Counter (counter name).
 	var flag bool
@@ -351,52 +335,73 @@ func BuildCounterEntry(h *CounterEntryHelper, p config_v1.P4Info) (*v1.Entity_Co
 }
 
 // GetCounterSpec_Unit gets the unit of "counter" instance.
-func GetCounterSpec_Unit(counter string, p config_v1.P4Info) (config_v1.CounterSpec_Unit, error) {
+func GetCounterSpec_Unit(counter string, p *config_v1.P4Info, direct bool) (config_v1.CounterSpec_Unit, error) {
 
 	var flag bool
-	var cnt *config_v1.Counter
-	flag = false
-	for _, c := range p.Counters {
-		if (c.Preamble.Name == counter) || (c.Preamble.Alias == counter) {
-			cnt = c
-			flag = true
-			break
+	var cnt interface{}
+
+	if direct {
+		flag = false
+		for _, c := range p.DirectCounters {
+			if (c.Preamble.Name == counter) || (c.Preamble.Alias == counter) {
+				cnt = c
+				flag = true
+				break
+			}
+		}
+	} else {
+		flag = false
+		for _, c := range p.Counters {
+			if (c.Preamble.Name == counter) || (c.Preamble.Alias == counter) {
+				cnt = c
+				flag = true
+				break
+			}
 		}
 	}
+
 	if flag == false {
 		err := fmt.Errorf("cannot find counter instance")
 		return config_v1.CounterSpec_UNSPECIFIED, err
 	}
 
-	return cnt.Spec.Unit, nil
+	switch cnt.(type) {
+	case *config_v1.DirectCounter:
+		return cnt.(*config_v1.DirectCounter).Spec.Unit, nil
+	case *config_v1.Counter:
+		return cnt.(*config_v1.Counter).Spec.Unit, nil
+	default:
+		err := fmt.Errorf("unknown type.")
+		return config_v1.CounterSpec_UNSPECIFIED, err
+	}
 }
 
 // NewUpdate creates new "Update" instance.
-func NewUpdate(updateType string, entity *v1.Entity) (*v1.Update, error) {
+func NewUpdate(updateType string, entity *v1.Entity) *v1.Update {
 
 	switch updateType {
 	case "INSERT":
 		update := v1.Update{
 			Type:   v1.Update_INSERT,
 			Entity: entity}
-		return &update, nil
+		return &update
 
 	case "MODIFY":
 		update := v1.Update{
 			Type:   v1.Update_MODIFY,
 			Entity: entity}
-		return &update, nil
+		return &update
 
 	case "DELETE":
 		update := v1.Update{
 			Type:   v1.Update_DELETE,
 			Entity: entity}
-		return &update, nil
+		return &update
 
 	default:
 		update := v1.Update{
 			Type:   v1.Update_UNSPECIFIED,
 			Entity: entity}
-		return &update, nil
+		return &update
 	}
 }
