@@ -206,7 +206,3 @@ input vlan ID      : 100 [Enter]
 VLAN-ID:  100
 CNT NUM:  1204   bytes
 ```
-
-# 後始末
-
-TODO

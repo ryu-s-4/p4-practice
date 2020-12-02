@@ -233,13 +233,15 @@ func DBManagement(sigCh chan string, errCh chan error) {
 
 		case "del":
 
-			/* データプレーンから監視対象 MAC アドレスを削除 */
+			/* 削除する MAC アドレスが DB に登録されているかを確認 */
 			query := bson.M{"match": bson.M{"hdr.ethernet.srcAddr": mac}}
 			r := collection.FindOne(context.Background(), query)
 			if r.Err() != nil {
 				fmt.Println("ERROR: the addr. is NOT registered.")
 				continue
 			}
+
+			/* データプレーンから監視対象 MAC アドレスを削除 */
 			teh := myutils.TableEntryHelper{}
 			err = r.Decode(&teh)
 			if err != nil {
@@ -262,10 +264,12 @@ func DBManagement(sigCh chan string, errCh chan error) {
 				return
 			}
 
-			/* delete the table entry from DB */
+			/* DB から監視対象 MAC アドレスを削除 */
 			_, err = collection.DeleteOne(context.Background(), query)
 			if err != nil {
-				log.Println("ERROR: cannot find the mac addr. to be deleted.")
+				log.Println("ERROR: failed to delete the table entry in DB. ")
+				errCh <- err
+				return
 			}
 			log.Println("INFO: successfully deleted the table entry.")
 
