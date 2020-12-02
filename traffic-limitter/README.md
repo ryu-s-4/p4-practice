@@ -129,9 +129,9 @@ host1 への L2 転送を行うためのテーブルエントリは下記のよ�
 2020/12/02 18:52:51 INFO: Entries are successfully written.
 ========== Meter Regist/Delete ==========
  [reg | del | exit]  <MAC Addr. to be monitored>
-   - reg : register the TEID to be monitored
-   - del : delete the TEID to be monitored
-   - exit: exit the CLI
+   - reg : register the MAC Addr. to be monitored
+   - del : delete   the MAC Addr. to be monitored
+   - exit: exit     the CLI
 =========================================
 [入力待ち]
 ```
@@ -181,7 +181,7 @@ PING 192.168.0.3 (192.168.0.3) 500(528) bytes of data.
 [入力待ち]
 ```
 
-監視対象の MAC アドレスを削除する場合は ```del  <MACアドレス>``` を入力します．無事，MAC アドレスが削除されると下記のようにメッセージが出力されます．
+監視対象の MAC アドレスを削除する場合は ```del  <MACアドレス>``` を入力します．無事 MAC アドレスが削除されると下記のようにメッセージが出力されます．
 
 ```
 2020/12/02 19:03:11 INFO: successfully deleted the table entry.

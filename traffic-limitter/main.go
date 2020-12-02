@@ -160,9 +160,9 @@ func DBManagement(sigCh chan string, errCh chan error) {
 
 	fmt.Println("========== Meter Regist/Delete ==========")
 	fmt.Println(" [reg | del | exit]  <MAC Addr. to be monitored>")
-	fmt.Println("   - reg : register the TEID to be monitored")
-	fmt.Println("   - del : delete the TEID to be monitored")
-	fmt.Println("   - exit: exit the CLI")
+	fmt.Println("   - reg : register the MAC Addr. to be monitored")
+	fmt.Println("   - del : delete   the MAC Addr. to be monitored")
+	fmt.Println("   - exit: exit     the CLI")
 	fmt.Println("=========================================")
 	for {
 
