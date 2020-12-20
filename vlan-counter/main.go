@@ -328,7 +328,7 @@ func main() {
 
 			cnt_id := counterentry.CounterEntry.GetCounterId()
 			init_data := &v1.CounterData{
-				ByteCount: 0,
+				ByteCount:   0,
 				PacketCount: 0,
 			}
 			cntent := &v1.Entity_CounterEntry{
@@ -341,13 +341,6 @@ func main() {
 				},
 			}
 
-			/*
-			counterentry.CounterEntry.Data = &v1.CounterData{
-				ByteCount: -1,
-				PacketCount: -1,
-			}
-			*/
-
 			upds := []*v1.Update{}
 			upd, err := myutils.NewUpdate("MODIFY", &v1.Entity{Entity: cntent})
 			upds = append(upds, upd)
@@ -357,8 +350,6 @@ func main() {
 			}
 			log.Println("INFO: Counter Entry is modified.")
 			continue
-		} else {
-
 		}
 
 		cnt_unit, err := myutils.GetCounterSpec_Unit(counter, p4info)

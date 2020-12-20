@@ -1,79 +1,79 @@
 { 
   "table_entries": [ 
     {
-      "table": "MyIngress.mac_exact",
+      "table": "mac_exact",
       "match": {
         "hdr.ethernet.dstAddr": "ff:ff:ff:ff:ff:ff"
       },
-      "action_name": "MyIngress.broadcast"
+      "action_name": "broadcast"
     }, 
     {
-      "table": "MyIngress.mac_exact",
+      "table": "mac_exact",
       "match": {
         "hdr.ethernet.dstAddr": "33:33:00:00:00:02"
       },
-      "action_name": "MyIngress.broadcast"
+      "action_name": "broadcast"
     },   
     {  
-      "table": "MyIngress.mac_vlan_exact",
+      "table": "mac_vlan_exact",
       "match": {    
         "hdr.vlan.id": 100,    
         "hdr.ethernet.dstAddr": "ff:ff:ff:ff:ff:ff"    
       },    
-      "action_name": "MyIngress.broadcast_vlan",    
+      "action_name": "broadcast_vlan",    
       "action_params": {    
         "grp_id": 2   
       }    
     },
     {  
-      "table": "MyIngress.mac_vlan_exact",
+      "table": "mac_vlan_exact",
       "match": {    
         "hdr.vlan.id": 200,    
         "hdr.ethernet.dstAddr": "ff:ff:ff:ff:ff:ff"    
       },    
-      "action_name": "MyIngress.broadcast_vlan",    
+      "action_name": "broadcast_vlan",    
       "action_params": {    
         "grp_id": 3 
       }    
     },
     {
-      "table": "MyIngress.mac_exact",
+      "table": "mac_exact",
       "match": {
         "hdr.ethernet.dstAddr": "2a:bf:aa:8f:64:b3"
       },
-      "action_name": "MyIngress.switching",
+      "action_name": "switching",
       "action_params": {
         "port": 0
       }
     },
     {
-      "table": "MyIngress.mac_exact",
+      "table": "mac_exact",
       "match": {
         "hdr.ethernet.dstAddr": "f6:b8:bc:00:df:b7"
       },
-      "action_name": "MyIngress.switching",
+      "action_name": "switching",
       "action_params": {
         "port": 1
       }
     },
     {
-      "table": "MyIngress.mac_vlan_exact",
+      "table": "mac_vlan_exact",
       "match": {
         "hdr.vlan.id": 100,
         "hdr.ethernet.dstAddr": "3a:03:c9:c7:08:2b"
       },
-      "action_name": "MyIngress.switching_vlan",
+      "action_name": "switching_vlan",
       "action_params": {
         "port": 0
       }
     },
     {
-      "table": "MyIngress.mac_vlan_exact",
+      "table": "mac_vlan_exact",
       "match": {
         "hdr.vlan.id": 100,
         "hdr.ethernet.dstAddr": "ce:94:04:c9:38:73"
       },
-      "action_name": "MyIngress.switching_vlan",
+      "action_name": "switching_vlan",
       "action_params": {
         "port": 2
       }

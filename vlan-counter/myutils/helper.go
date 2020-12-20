@@ -1,19 +1,3 @@
-/* supported functionalities
- - BUILD
- 	-table entry (with match field as follows)
-		 - exact match
-	- multicast group entry
-	- counter entry
- - GET
- 	- action parameters (with value type as follows)
-		- float64
-		- MAC addr.
-		- IPv4/v6 addr.
-	- counter unit
- - CREATE
-	- update
-*/
-
 package myutils
 
 import (
@@ -94,7 +78,7 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 	var flag bool
 	flag = false
 	for _, t := range p.Tables {
-		if t.Preamble.Name == h.Table {
+		if (t.Preamble.Name == h.Table) || (t.Preamble.Alias == h.Table) {
 			table = t
 			flag = true
 			break
@@ -201,7 +185,7 @@ func BuildTableEntry(h *TableEntryHelper, p config_v1.P4Info) (*v1.Entity_TableE
 	var action *config_v1.Action
 	flag = false
 	for _, a := range p.Actions {
-		if a.Preamble.Name == h.Action_Name {
+		if (a.Preamble.Name == h.Action_Name) || (a.Preamble.Alias == h.Action_Name) {
 			action = a
 			flag = true
 			break
