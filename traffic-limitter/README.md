@@ -72,7 +72,7 @@ p4info.txt  switching_meter.json  ...
 ```
 
 BMv2 にて L2 転送を行うためにテーブルエントリ設定，マルチキャストグループ設定が必要となります．別ターミナルを起動して，[前回](../vlan-counter/README.md)と同様 ```runtime.json``` に MAC アドレスを入力し，C/P プログラムがこちらの json ファイルを読み込むことでテーブルエントリ，マルチキャストグループが設定されます．
-host1 への L2 転送を行うためのテーブルエントリは下記のように入力します．同様の設定を host3, host5, host7 に対しても行います．ｓ
+host1 への L2 転送を行うためのテーブルエントリは下記のように入力します．同様の設定を host3, host5, host7 に対しても行います．
 
 ```
 > cd p4-practice/traffic-limitter
