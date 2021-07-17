@@ -1,8 +1,8 @@
 /*
 SRv6 (RFC8986) implementation.
 Supported functions are as follows.
- - End, End.X, End.DX2, End.DX2V, End.DT2U
- - H.Encaps.Red
+ - End, End.X, End.DX2, End.DX2V, End.DT2U, End.DT2M
+ - H.Encaps
 
 This file MUST be included to the main program.
 */
