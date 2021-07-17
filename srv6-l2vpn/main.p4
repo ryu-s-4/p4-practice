@@ -649,10 +649,7 @@ control SwitchIngress(inout header_t hdr,
         }
 
         // check if in-coming packet only needs switching or not.
-        vlan_rd_mapping.apply()
-        if (!l2_forward.) {
-
-        } else if (srv6_encaps_func.apply().hit) {
+        if (srv6_encaps_func.apply().hit) {
             if (hdr.vlan.isValid()) {
                 hdr.inner_vlan.setValid();
                 hdr.inner_vlan.pcp = hdr.vlan.pcp;
