@@ -1,0 +1,203 @@
+{ 
+  "table_entries": [ 
+    {
+      "table": "SwitchIngress.l2_check",
+      "match": {
+        "std_meta.ingress_port": "_0/0000",
+        "hdr.vlan.id": "_0/0000",
+        "hdr.ethernet.dst_addr": "ff:ff:ff:ff:ff:ff"
+      },
+      "priority": 50,
+      "action_name": "SwitchIngress.forwarding_to_CPU"
+    },
+    {
+      "table": "SwitchIngress.l2_check",
+      "match": {
+        "std_meta.ingress_port": "_0/0000",
+        "hdr.vlan.id": "_10/0fff",
+        "hdr.ethernet.dst_addr": "ff:ff:ff:ff:ff:ff"
+      },
+      "priority": 100,
+      "action_name": "NoAction"
+    },
+    {
+      "table": "SwitchIngress.l2_check",
+      "match": {
+        "std_meta.ingress_port": "_0/0000",
+        "hdr.vlan.id": "_20/0fff",
+        "hdr.ethernet.dst_addr": "ff:ff:ff:ff:ff:ff"
+      },
+      "priority": 100,
+      "action_name": "NoAction"
+    },
+    {
+      "table": "SwitchIngress.srv6_encaps_func",
+      "match": {
+        "hdr.ethernet.dst_addr" : "ff:ff:ff:ff:ff:ff/ffffffffffff",
+        "hdr.vlan.id" : "_10/0fff"
+      },
+      "priority": 100,
+      "action_name": "SwitchIngress.h_encaps_0_inner_ether",
+      "action_params": {
+        "src_addr": "2001::1",
+        "sid_0": "fc00:0009::6"
+      }
+    },
+    {
+      "table": "SwitchIngress.srv6_encaps_func",
+      "match": {
+        "hdr.vlan.id" : "_10/0fff",
+        "hdr.ipv4.dst_addr" : "192.168.10.0/ffffff00",
+        "hdr.ipv4.src_addr" : "192.168.10.0/ffffff00"
+      },
+      "priority": 10,
+      "action_name": "SwitchIngress.h_encaps_0_inner_ether",
+      "action_params": {
+        "src_addr": "2001::1",
+        "sid_0": "fc00:0009::5"
+      }
+    },
+    {
+      "table": "SwitchIngress.srv6_encaps_func",
+      "match": {
+        "hdr.vlan.id" : "_20/0fff"
+      },
+      "priority": 10,
+      "action_name": "SwitchIngress.h_encaps_0_inner_ether",
+      "action_params": {
+        "src_addr": "2001::1",
+        "sid_0": "fc00:0009::4"
+      }
+    }, 
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0001::2/128"
+      },
+      "action_name": "SwitchIngress.forwarding_to_CPU"
+    },
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0002::4/128"
+      },
+      "action_name": "SwitchIngress.forwarding_to_CPU"
+    },
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0001::3/128"
+      },
+      "action_name": "SwitchIngress.forwarding_v6",
+      "action_params": {
+        "port": 1,
+        "dst": "aa:bb:cc:dd:02:00",
+        "src": "aa:bb:cc:dd:01:01"
+      }
+    },
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0002::5/128"
+      },
+      "action_name": "SwitchIngress.forwarding_v6",
+      "action_params": {
+        "port": 2,
+        "dst": "aa:bb:cc:dd:01:02",
+        "src": "aa:bb:cc:dd:03:00"
+      }
+    },
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0003::/64"
+      },
+      "action_name": "SwitchIngress.forwarding_v6",
+      "action_params": {
+        "port": 1,
+        "dst": "aa:bb:cc:dd:02:00",
+        "src": "aa:bb:cc:dd:01:01"
+      }
+    },
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0004::/64"
+      },
+      "action_name": "SwitchIngress.forwarding_v6",
+      "action_params": {
+        "port": 1,
+        "dst": "aa:bb:cc:dd:02:00",
+        "src": "aa:bb:cc:dd:01:01"
+      }
+    },
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0005::/64"
+      },
+      "action_name": "SwitchIngress.forwarding_v6",
+      "action_params": {
+        "port": 1,
+        "dst": "aa:bb:cc:dd:02:00",
+        "src": "aa:bb:cc:dd:01:01"
+      }
+    },
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0007::/64"
+      },
+      "action_name": "SwitchIngress.forwarding_v6",
+      "action_params": {
+        "port": 1,
+        "dst": "aa:bb:cc:dd:02:00",
+        "src": "aa:bb:cc:dd:01:01"
+      }
+    },
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0008::/64"
+      },
+      "action_name": "SwitchIngress.forwarding_v6",
+      "action_params": {
+        "port": 1,
+        "dst": "aa:bb:cc:dd:02:00",
+        "src": "aa:bb:cc:dd:01:01"
+      }
+    },
+    {
+      "table": "SwitchIngress.ipv6_forward",
+      "match": {
+        "meta.rd" : 0,
+        "hdr.ipv6.dst_addr": "fc00:0009::/64"
+      },
+      "action_name": "SwitchIngress.forwarding_v6",
+      "action_params": {
+        "port": 1,
+        "dst": "aa:bb:cc:dd:02:00",
+        "src": "aa:bb:cc:dd:01:01"
+      }
+    },
+    {
+      "table": "SwitchIngress.srv6_func",
+      "match": {
+        "hdr.ipv6.dst_addr": "fc00:0006::3/128"
+      },
+      "action_name": "SwitchIngress.end_dx2",
+      "action_params": {
+        "port": 0
+      }
+    }
+  ]
+}
