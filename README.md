@@ -6,6 +6,8 @@
   - 簡易 L2 スイッチに VLAN 毎のトラヒックカウンタを実装し，C/P からカウンタ値を取得します．
 - traffic-limitter
   - 簡易 L2 スイッチに送信元 MAC アドレス毎のトラヒック監視および制限機能を実装します．
+- srv6-l2vpn
+  - SRv6 の L2VPN 機能を実装し，ether over v6 with SRv6 の簡単なデモを実施します．
 - to be added ...
 
 # 各種リンク
