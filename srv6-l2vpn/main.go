@@ -111,11 +111,7 @@ func controller(addr string, port_num string, name string, main_channel chan str
 	go func() {
 		for {
 			pkt, err := cp.Channel.Recv()
-			if err != nil {
-				/* error 処理 */
-			} else {
-				log.Printf("INFO[%s]: Something received", name)
-			}
+			log.Printf("INFO[%s]: Something received", name)
 			pbuf <- pkt
 			ebuf <- err
 		}
