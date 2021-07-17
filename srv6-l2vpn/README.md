@@ -53,10 +53,8 @@ p4info.txt  main.json ...
 今回のデモは 2 種類の VLAN を中継区間で仮想的に接続する状況を想定します．
 VLAN 10 では End.DT2U/End.DT2M をそれぞれ利用してユーザフレームの宛先 MAC アドレスに基づく Switching，あるいは（対向PEにおける）BUM トラヒックのフラッディングを行います．VLAN 20 では End.DX2V を利用してユーザフレームの VLAN ID より出力ポートを決定します．
 なお，簡単のため host1 方向のトラヒックは全て End.DX2 で転送することとします．
-
 host1 方向のトラヒックについて，中継区間では VLAN 10 のトラヒックは RT4 -> RT3 -> RT1 を通過するよう RT3 の (RT1向きの) End.X を RT4 にてインサートして転送し，また VLAN 20 のトラヒックは RT4 -> RT3 -> RT2 -> RT1 を通過するよう RT3 および RT2 の End をそれぞれ RT4 にてインサートして転送します．
 なお，アンダーレイのコスト設計は RT1 <-> RT2 <-> RT4 が最短路となるよう設計されているものとします．
-
 トラヒックパターン毎のヘッダ構成および転送の様子をそれぞれ [figures ディレクトリ](./figures) に格納しましたので参考として併せてご参照ください．
 
 RT 4 にて対向 host の MAC アドレスに応じた Switching を行うために各 host の MAC アドレスをテーブルエントリに指定する必要があります．
@@ -70,7 +68,7 @@ RT 4 にて対向 host の MAC アドレスに応じた Switching を行うた�
       "table": "SwitchIngress.l2_forward",
       "match": {
         "meta.rd": 0,
-        "meta.ethernet_dst_addr": "host2's MAC addr." <- host2 の MAC アドレスを入力
+        "meta.ethernet_dst_addr": "host2's MAC addr."
       },
       "action_name": "SwitchIngress.switching",
       "action_params": {
@@ -81,7 +79,7 @@ RT 4 にて対向 host の MAC アドレスに応じた Switching を行うた�
       "table": "SwitchIngress.l2_forward",
       "match": {
         "meta.rd": 0,
-        "meta.ethernet_dst_addr": "host3's MAC addr." <- host3 の MAC アドレスを入力
+        "meta.ethernet_dst_addr": "host3's MAC addr."
       },
       "action_name": "SwitchIngress.switching",
       "action_params": {
