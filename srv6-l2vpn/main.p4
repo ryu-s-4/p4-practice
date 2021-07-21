@@ -648,7 +648,6 @@ control SwitchIngress(inout header_t hdr,
             //       this packet SHOULD be dropped.
         }
 
-        // check if in-coming packet only needs switching or not.
         if (srv6_encaps_func.apply().hit) {
             if (hdr.vlan.isValid()) {
                 hdr.inner_vlan.setValid();
@@ -709,6 +708,10 @@ control SwitchIngress(inout header_t hdr,
                             // replace inner vlan tag to outer vlan tag if necessary
                             // this is equal to expose inner vlan tag
                             if (hdr.inner_vlan.isValid()) {
+
+                                // save vlan id for vlan-forward.
+                                meta.vlan_id = hdr.inner_vlan.id;
+
                                 hdr.vlan.setValid();
                                 hdr.vlan.pcp = hdr.inner_vlan.pcp;
                                 hdr.vlan.cfi = hdr.inner_vlan.cfi;
@@ -716,13 +719,13 @@ control SwitchIngress(inout header_t hdr,
                                 hdr.vlan.ether_type = hdr.inner_vlan.ether_type;
                                 hdr.inner_vlan.setInvalid();
                             } else {
-                                /* TODO: inner_vlan MUST be parsed because this action requires inner vlan ID.
-                                         if hdr.inner_vlan.isValid() is false packet SHOULD be dropped and ICMP error be sent.
-                                */
+                                // inner_vlan MUST be parsed because this action requires inner vlan ID.
+                                // if hdr.inner_vlan.isValid() is false packet SHOULD be dropped and ICMP error be sent.s
+                                send_ICMP_error(4);
+                                mark_to_drop(std_meta);
                             }
 
                             // forwarding w/ inner VLAN ID
-                            meta.vlan_id = hdr.inner_vlan.id;
                             meta.vlan_forward_flag = true;
 
                         } else if (meta.srv6_func_applied == END_DT2U && hdr.srh.next_hdr == PROTOCOL_ETHER) {
@@ -828,6 +831,10 @@ control SwitchIngress(inout header_t hdr,
                         // replace inner vlan tag to outer vlan tag if necessary
                         // this is equal to expose inner vlan tag
                         if (hdr.inner_vlan.isValid()) {
+
+                            // save vlan id for vlan-forward.
+                            meta.vlan_id = hdr.inner_vlan.id;
+
                             hdr.vlan.setValid();
                             hdr.vlan.pcp = hdr.inner_vlan.pcp;
                             hdr.vlan.cfi = hdr.inner_vlan.cfi;
@@ -835,13 +842,13 @@ control SwitchIngress(inout header_t hdr,
                             hdr.vlan.ether_type = hdr.inner_vlan.ether_type;
                             hdr.inner_vlan.setInvalid();
                         } else {
-                            /* TODO: inner_vlan MUST be parsed because this action requires inner vlan ID.
-                                     if hdr.inner_vlan.isValid() is false packet SHOULD be dropped and ICMP error be sent.
-                            */
+                            // inner_vlan MUST be parsed because this action requires inner vlan ID.
+                            // if hdr.inner_vlan.isValid() is false packet SHOULD be dropped and ICMP error be sent.s
+                            send_ICMP_error(4);
+                            mark_to_drop(std_meta);
                         }
 
                         // forwarding w/ inner VLAN ID
-                        meta.vlan_id = hdr.inner_vlan.id;
                         meta.vlan_forward_flag = true;
 
                     } else if (meta.srv6_func_applied == END_DT2U && hdr.ipv6.next_hdr == PROTOCOL_ETHER) {
