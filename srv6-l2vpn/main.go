@@ -189,5 +189,5 @@ func main() {
 	/* shutdown */
 	log.Println("INFO: Shutdown (wait for a few seconds)")
 	close(main_channel)
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 3)
 }
